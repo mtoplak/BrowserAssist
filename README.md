@@ -2,6 +2,18 @@
 
 This is a Chrome extension development template built with modern frontend technologies, designed to help developers quickly create powerful Chrome extensions. The project integrates **React**, **TypeScript**, **Tailwind CSS**, and **Webpack**, with a built-in React Hook for interacting with `chrome.storage` and support for communication between `popup` and `options` pages.
 
+## Project Purpose
+
+BrowserAssist is being developed as an accessibility-focused browser assistant, especially for disabled users who benefit from alternative interaction methods.
+
+The goal is to make web navigation and actions easier through assistive inputs such as:
+
+- Eye tracking
+- Voice control
+- Computer vision-based interaction
+
+This extension acts as the browser-side interface for those assistive experiences.
+
 ## Features
 
 - **React**: Build dynamic UIs with a component-based approach.
@@ -21,79 +33,56 @@ This is a Chrome extension development template built with modern frontend techn
 - Chrome Extension APIs
 - DaisyUI
 
-## Installation
+## How To Use In Development
 
-1. **Clone the Repository**
-
-   ```bash
-   git clone git@github.com:pickknow/chrome-extension-react-Tailwindcss-typescript.git
-   cd [repo-name]
-
-   ```
-
-2. Install Dependencies
+1. Install dependencies
 
    ```bash
    npm install
-
    ```
 
-3. Run in Development Mode
-   ```bash
-   npm run dev
-   ```
+2. Build
 
-This starts the development environment, watching for changes and generating unminified builds.
-
-4. Build for Production
    ```bash
    npm run build
    ```
 
-Generates optimized extension files in the dist directory.
+3. Load into Chrome
+   - Open Chrome and navigate to `chrome://extensions/`
+   - Enable Developer mode
+   - Click Load unpacked and select the `dist` folder from the project root
 
-5. Load into Chrome
-   Open Chrome and navigate to chrome://extensions/.
-   Enable “Developer mode.”
-   Click “Load unpacked” and select the dist folder from the project root.
+4. Develop and watch for changes
 
-## Usage
+   ```bash
+   npm run watch
+   ```
 
-1. Project Structure
+   Note: If you change files such as `src/content.ts`, `src/background.ts`, or `src/manifest.json`, you may need to reload the extension in `chrome://extensions/`.
 
-```
-├── src/
-│   ├── popup.tsx/html   # Popup page code
-│   ├── options.tsx/html # Options page code
-│   ├── tools/           # Custom React Hooks (e.g., chrome.storage)
-│   ├── assets/          # Static assets (images, styles, etc.)
-│   ├── compontments/    # Reusable React components
-│   ├── manifest.json    # Chrome extension configuration file
-│   └── ...
-├── dist/                # Build output directory
-├── webpack.config.js    # Webpack configuration file
-└── ...
-```
+5. (Optional) Run development build directly
 
-2. Customize the Extension
-   Edit src/manifest.json to configure basic extension details (name, version, permissions, etc.).
-   Write your logic in src/popup and src/options.
-   Use tools/useChromeStorage.ts to interact with Chrome storage.
+   ```bash
+   npm run dev
+   ```
 
-3. Example: Storing Data
+Original template README: https://github.com/pickknow/chrome-extension-react-Tailwindcss-typescript
 
-```
-export default function App() {
-  const [count1, setCount1] = useChromeStorageLocal<number>("count1", 0);
-  return (
-    <div className='flex gap-10 items-center'>
-      <p>Stored Count1: {count1}</p>
-      <button className="btn btn-primary" onClick={() => setCount1(count1 + 1)}>Increment</button>
-      <button className="btn btn-primary" onClick={() => setCount1(0)}>Reset</button>
-    </div>
-  );
-};
-```
+## Important Files
+
+- `src/popup.tsx`: Extension popup interface
+- `src/options.tsx`: Options page interface and settings controls
+- `src/content.ts`: Content script that runs in the context of web pages
+- `src/background.ts`: Background script for extension lifecycle/background tasks
+- `src/tools/localStore.ts`: React hook wrapper for `chrome.storage.local`
+- `src/tools/functions.ts`: Utility functions (including opening/focusing options)
+- `src/compontments/CountShow.tsx`: Example reusable component using local storage
+- `src/manifest.json`: Extension manifest (permissions, scripts, metadata)
+- `src/popup.html`: Popup HTML entry
+- `src/options.html`: Options HTML entry
+- `src/index.css`: Shared Tailwind and custom UI styles
+- `webpack.config.js`: Webpack build configuration
+- `tailwind.config.js`: Tailwind CSS configuration
 
 ## Contributing
 

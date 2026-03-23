@@ -26,8 +26,16 @@ body,
 body {
   font-family: Bahnschrift, "Trebuchet MS", "Segoe UI", sans-serif;
   background:
-    radial-gradient(circle at 20% 20%, rgba(251, 146, 60, 0.22), transparent 45%),
-    radial-gradient(circle at 82% 85%, rgba(34, 211, 238, 0.2), transparent 40%),
+    radial-gradient(
+      circle at 20% 20%,
+      rgba(251, 146, 60, 0.22),
+      transparent 45%
+    ),
+    radial-gradient(
+      circle at 82% 85%,
+      rgba(34, 211, 238, 0.2),
+      transparent 40%
+    ),
     linear-gradient(160deg, var(--bg-1) 0%, var(--bg-2) 100%);
   color: var(--text-main);
 }
@@ -90,7 +98,11 @@ body {
   display: inline-flex;
   padding: 4px 10px;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(251, 146, 60, 0.22), rgba(34, 211, 238, 0.2));
+  background: linear-gradient(
+    90deg,
+    rgba(251, 146, 60, 0.22),
+    rgba(34, 211, 238, 0.2)
+  );
   border: 1px solid rgba(255, 255, 255, 0.18);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -142,7 +154,9 @@ body {
   color: #082f49;
   cursor: pointer;
   background: linear-gradient(100deg, var(--accent-warm), var(--accent-cool));
-  transition: transform 160ms ease, box-shadow 160ms ease;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .primary-cta:hover {
@@ -179,7 +193,9 @@ body {
   padding: 8px 12px;
   font-weight: 700;
   cursor: pointer;
-  transition: transform 140ms ease, border-color 140ms ease;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease;
 }
 
 .counter-btn:hover {
@@ -210,7 +226,11 @@ body {
   right: -40px;
   width: 120px;
   height: 120px;
-  background: radial-gradient(circle, rgba(251, 146, 60, 0.65), rgba(251, 146, 60, 0.08));
+  background: radial-gradient(
+    circle,
+    rgba(251, 146, 60, 0.65),
+    rgba(251, 146, 60, 0.08)
+  );
 }
 
 .orb-two {
@@ -218,7 +238,11 @@ body {
   left: -40px;
   width: 140px;
   height: 140px;
-  background: radial-gradient(circle, rgba(34, 211, 238, 0.62), rgba(34, 211, 238, 0.08));
+  background: radial-gradient(
+    circle,
+    rgba(34, 211, 238, 0.62),
+    rgba(34, 211, 238, 0.08)
+  );
   animation-delay: 350ms;
 }
 
@@ -227,7 +251,11 @@ body {
   left: 7%;
   width: 190px;
   height: 190px;
-  background: radial-gradient(circle, rgba(56, 189, 248, 0.48), rgba(56, 189, 248, 0.05));
+  background: radial-gradient(
+    circle,
+    rgba(56, 189, 248, 0.48),
+    rgba(56, 189, 248, 0.05)
+  );
 }
 
 @media (max-width: 640px) {
