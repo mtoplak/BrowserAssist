@@ -1,0 +1,247 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-1: #0f172a;
+  --bg-2: #1f2937;
+  --accent-warm: #fb923c;
+  --accent-cool: #22d3ee;
+  --text-main: #f8fafc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: Bahnschrift, "Trebuchet MS", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(251, 146, 60, 0.22), transparent 45%),
+    radial-gradient(circle at 82% 85%, rgba(34, 211, 238, 0.2), transparent 40%),
+    linear-gradient(160deg, var(--bg-1) 0%, var(--bg-2) 100%);
+  color: var(--text-main);
+}
+
+@keyframes drift {
+  0% {
+    transform: translateY(0px) translateX(0px);
+  }
+  50% {
+    transform: translateY(-8px) translateX(8px);
+  }
+  100% {
+    transform: translateY(0px) translateX(0px);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nebula-shell {
+  position: relative;
+  overflow: hidden;
+  padding: 20px;
+  animation: fade-up 350ms ease-out;
+}
+
+.popup-shell {
+  min-width: 360px;
+  min-height: 460px;
+}
+
+.options-shell {
+  min-height: 100vh;
+  padding: 28px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.glass-card {
+  position: relative;
+  z-index: 2;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(15, 23, 42, 0.68);
+  border-radius: 22px;
+  padding: 22px;
+  box-shadow: 0 20px 40px rgba(2, 6, 23, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+.chip-label {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(251, 146, 60, 0.22), rgba(34, 211, 238, 0.2));
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.hero-title {
+  margin: 0;
+  font-size: 1.95rem;
+  line-height: 1.08;
+  font-weight: 800;
+}
+
+.hero-copy {
+  margin: 0;
+  color: #e2e8f0;
+  font-size: 0.96rem;
+  line-height: 1.5;
+}
+
+.metric-card {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  background: rgba(148, 163, 184, 0.08);
+  padding: 10px 12px;
+}
+
+.metric-kicker {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.metric-value {
+  margin: 4px 0 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.primary-cta {
+  border: 0;
+  border-radius: 14px;
+  padding: 11px 14px;
+  font-weight: 700;
+  color: #082f49;
+  cursor: pointer;
+  background: linear-gradient(100deg, var(--accent-warm), var(--accent-cool));
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.primary-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(34, 211, 238, 0.25);
+}
+
+.counter-shell {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  padding: 14px;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.counter-label {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.counter-value {
+  margin: 4px 0 0;
+  font-size: 2rem;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.counter-btn {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease;
+}
+
+.counter-btn:hover {
+  transform: translateY(-1px);
+}
+
+.counter-btn-primary {
+  background: rgba(34, 211, 238, 0.22);
+  border-color: rgba(34, 211, 238, 0.46);
+  color: #ecfeff;
+}
+
+.counter-btn-ghost {
+  background: rgba(251, 146, 60, 0.18);
+  border-color: rgba(251, 146, 60, 0.45);
+  color: #ffedd5;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(2px);
+  animation: drift 4s ease-in-out infinite;
+}
+
+.orb-one {
+  top: -30px;
+  right: -40px;
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(251, 146, 60, 0.65), rgba(251, 146, 60, 0.08));
+}
+
+.orb-two {
+  bottom: -50px;
+  left: -40px;
+  width: 140px;
+  height: 140px;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.62), rgba(34, 211, 238, 0.08));
+  animation-delay: 350ms;
+}
+
+.orb-three {
+  top: 5%;
+  left: 7%;
+  width: 190px;
+  height: 190px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.48), rgba(56, 189, 248, 0.05));
+}
+
+@media (max-width: 640px) {
+  .popup-shell {
+    min-width: 320px;
+    min-height: 420px;
+  }
+
+  .options-shell {
+    padding: 16px;
+    align-items: flex-start;
+  }
+
+  .hero-title {
+    font-size: 1.6rem;
+  }
+}
