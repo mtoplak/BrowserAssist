@@ -49,6 +49,7 @@
     "webpack-dev-server": "^5.2.0"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.34",
     "@testing-library/jest-dom": "^6.6.3",
     "css-loader": "^7.1.2",
     "postcss-loader": "^8.1.1",

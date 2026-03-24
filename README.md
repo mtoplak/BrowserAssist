@@ -9,7 +9,6 @@ BrowserAssist is being developed as an accessibility-focused browser assistant, 
 The goal is to make web navigation and actions easier through assistive inputs such as:
 
 - Eye tracking
-- Voice control
 - Computer vision-based interaction
 
 This extension acts as the browser-side interface for those assistive experiences.

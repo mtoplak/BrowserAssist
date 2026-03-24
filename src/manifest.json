@@ -2,20 +2,26 @@
   "manifest_version": 3,
   "name": "BrowserAssist",
   "version": "1.0",
-  "description": "A simple Chrome extension",
+  "description": "Accessible browser navigation with local gesture control",
   "icons": {
     "16": "assets/icon16.png",
     "32": "assets/icon32.png",
     "48": "assets/icon48.png",
     "128": "assets/icon128.png"
   },
-  "permissions": ["tabs", "activeTab", "storage"],
+  "permissions": ["tabs", "activeTab", "storage", "sidePanel"],
+  "host_permissions": ["https://storage.googleapis.com/*"],
+  "minimum_chrome_version": "114",
 
-  "action": {
-    "default_popup": "popup.html"
+  "action": {},
+  "side_panel": {
+    "default_path": "popup.html"
   },
   "background": {
     "service_worker": "background.js"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   },
   "content_scripts": [
     {

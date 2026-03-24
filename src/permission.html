@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>BrowserAssist — Camera Access</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 32px;
+      max-width: 380px;
+      text-align: center;
+    }
+    h2 { font-size: 1.25rem; margin-bottom: 12px; }
+    p { color: #94a3b8; font-size: 0.9rem; line-height: 1.5; }
+    .error { color: #f87171; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Camera Access Required</h2>
+    <p id="status">Requesting camera permission…</p>
+  </div>
+  <script src="permission.js"></script>
+</body>
+</html>
