@@ -1,7 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { handleGoToOptions } from "./tools/functions";
-import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
+import {
+  FaceLandmarker,
+  FilesetResolver,
+  HandLandmarker,
+} from "@mediapipe/tasks-vision";
 import type {
   GestureAction,
   GestureRuntimeMessage,
@@ -79,18 +83,33 @@ const distance = (
   return Math.sqrt(dx * dx + dy * dy + dz * dz);
 };
 
+type PopupTab = "gesture" | "eye";
+type EyeGazeSample = { x: number; y: number } | null;
+
+const LEFT_IRIS = [468, 469, 470, 471];
+const RIGHT_IRIS = [472, 473, 474, 475];
+
 const App: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<PopupTab>("gesture");
   const [isActive, setIsActive] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [statusText, setStatusText] = useState<string>("Idle");
   const [lastGesture, setLastGesture] = useState<string>("None");
+  const [isEyeActive, setIsEyeActive] = useState<boolean>(false);
+  const [eyeStatusText, setEyeStatusText] = useState<string>("Idle");
+  const [lastGaze, setLastGaze] = useState<EyeGazeSample>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const handLandmarkerRef = useRef<HandLandmarker | null>(null);
   const rafRef = useRef<number | null>(null);
+  const eyeVideoRef = useRef<HTMLVideoElement | null>(null);
+  const eyeStreamRef = useRef<MediaStream | null>(null);
+  const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
+  const eyeRafRef = useRef<number | null>(null);
   const isActiveRef = useRef<boolean>(false);
   const isPausedRef = useRef<boolean>(false);
+  const isEyeActiveRef = useRef<boolean>(false);
   const lastActionTsRef = useRef<number>(0);
   const lastPointTsRef = useRef<number>(0);
   const wristHistoryRef = useRef<Array<{ x: number; y: number; t: number }>>(
@@ -405,11 +424,238 @@ const App: React.FC = () => {
     }
   }, [triggerAction]);
 
+  const getIrisCenter = (
+    landmarks: Array<{ x: number; y: number; z: number }>,
+    indices: number[],
+  ): { x: number; y: number } | null => {
+    if (landmarks.length <= Math.max(...indices)) {
+      return null;
+    }
+    const sum = indices.reduce(
+      (acc, index) => {
+        acc.x += landmarks[index].x;
+        acc.y += landmarks[index].y;
+        return acc;
+      },
+      { x: 0, y: 0 },
+    );
+    return {
+      x: sum.x / indices.length,
+      y: sum.y / indices.length,
+    };
+  };
+
+  const stopEyeTracking = useCallback((): void => {
+    if (!isEyeActiveRef.current) {
+      return;
+    }
+
+    if (eyeRafRef.current !== null) {
+      cancelAnimationFrame(eyeRafRef.current);
+      eyeRafRef.current = null;
+    }
+
+    if (eyeStreamRef.current) {
+      eyeStreamRef.current.getTracks().forEach((track) => track.stop());
+      eyeStreamRef.current = null;
+    }
+
+    if (eyeVideoRef.current) {
+      eyeVideoRef.current.pause();
+      eyeVideoRef.current.srcObject = null;
+    }
+
+    if (faceLandmarkerRef.current) {
+      faceLandmarkerRef.current.close();
+      faceLandmarkerRef.current = null;
+    }
+
+    isEyeActiveRef.current = false;
+    setIsEyeActive(false);
+    setEyeStatusText("Stopped");
+    setLastGaze(null);
+  }, []);
+
+  const startEyeTracking = useCallback(async (): Promise<void> => {
+    if (isEyeActiveRef.current) {
+      return;
+    }
+
+    setEyeStatusText("Checking camera access…");
+
+    let cameraAllowed = false;
+    try {
+      const perm = await navigator.permissions.query({
+        name: "camera" as PermissionName,
+      });
+      cameraAllowed = perm.state === "granted";
+    } catch {
+      /* Permissions API may not support camera query in this context */
+    }
+
+    if (!cameraAllowed) {
+      setEyeStatusText("Requesting camera permission…");
+      cameraAllowed = await new Promise<boolean>((resolve) => {
+        let settled = false;
+        const settle = (value: boolean): void => {
+          if (settled) return;
+          settled = true;
+          chrome.runtime.onMessage.removeListener(onMsg);
+          resolve(value);
+        };
+
+        const onMsg = (message: { type: string }): void => {
+          if (message.type === "CAMERA_PERMISSION_GRANTED") settle(true);
+          else if (message.type === "CAMERA_PERMISSION_DENIED") settle(false);
+        };
+        chrome.runtime.onMessage.addListener(onMsg);
+
+        chrome.windows
+          .create({
+            url: chrome.runtime.getURL("permission.html"),
+            type: "popup",
+            width: 460,
+            height: 320,
+            focused: true,
+          })
+          .then((win) => {
+            if (!win?.id) {
+              settle(false);
+              return;
+            }
+            const onClosed = (id: number): void => {
+              if (id !== win.id) return;
+              chrome.windows.onRemoved.removeListener(onClosed);
+              setTimeout(() => settle(false), 300);
+            };
+            chrome.windows.onRemoved.addListener(onClosed);
+          })
+          .catch(() => settle(false));
+      });
+    }
+
+    if (!cameraAllowed) {
+      setEyeStatusText("Camera access denied. Grant permission and retry.");
+      return;
+    }
+
+    setEyeStatusText("Starting eye tracking…");
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 360 },
+          facingMode: "user",
+        },
+        audio: false,
+      });
+
+      const wasmBasePath = chrome.runtime.getURL("assets/mediapipe/wasm");
+      const vision = await FilesetResolver.forVisionTasks(wasmBasePath);
+
+      faceLandmarkerRef.current = await FaceLandmarker.createFromOptions(
+        vision,
+        {
+          baseOptions: {
+            modelAssetPath:
+              "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+          },
+          runningMode: "VIDEO",
+          numFaces: 1,
+          outputFaceBlendshapes: false,
+          outputFacialTransformationMatrixes: false,
+        },
+      );
+
+      if (!eyeVideoRef.current) {
+        throw new Error("Video element missing");
+      }
+
+      eyeStreamRef.current = stream;
+      eyeVideoRef.current.srcObject = stream;
+      await eyeVideoRef.current.play();
+
+      isEyeActiveRef.current = true;
+      setIsEyeActive(true);
+      setEyeStatusText("Tracking gaze (calibration next)");
+
+      const detectLoop = async (): Promise<void> => {
+        if (
+          !isEyeActiveRef.current ||
+          !faceLandmarkerRef.current ||
+          !eyeVideoRef.current
+        ) {
+          return;
+        }
+
+        const now = Date.now();
+        const result = faceLandmarkerRef.current.detectForVideo(
+          eyeVideoRef.current,
+          now,
+        );
+        const landmarks = result.faceLandmarks?.[0];
+
+        if (!landmarks || landmarks.length === 0) {
+          setLastGaze(null);
+          eyeRafRef.current = requestAnimationFrame(() => {
+            void detectLoop();
+          });
+          return;
+        }
+
+        const leftIris = getIrisCenter(landmarks, LEFT_IRIS);
+        const rightIris = getIrisCenter(landmarks, RIGHT_IRIS);
+
+        if (leftIris && rightIris) {
+          const irisX = (leftIris.x + rightIris.x) / 2;
+          const irisY = (leftIris.y + rightIris.y) / 2;
+          setLastGaze({
+            x: clamp01(1 - irisX),
+            y: clamp01(irisY),
+          });
+        } else {
+          setLastGaze(null);
+        }
+
+        eyeRafRef.current = requestAnimationFrame(() => {
+          void detectLoop();
+        });
+      };
+
+      eyeRafRef.current = requestAnimationFrame(() => {
+        void detectLoop();
+      });
+    } catch (error) {
+      if (eyeStreamRef.current) {
+        eyeStreamRef.current.getTracks().forEach((track) => track.stop());
+        eyeStreamRef.current = null;
+      }
+      if (faceLandmarkerRef.current) {
+        faceLandmarkerRef.current.close();
+        faceLandmarkerRef.current = null;
+      }
+      const errorMessage = getStartupErrorMessage(error);
+      setEyeStatusText(`Unable to start: ${errorMessage}`);
+      setIsEyeActive(false);
+      isEyeActiveRef.current = false;
+      console.error("Failed to start eye tracking", error);
+    }
+  }, []);
+
+
   useEffect(() => {
     return () => {
       void stopEngine();
+      stopEyeTracking();
     };
-  }, [stopEngine]);
+  }, [stopEngine, stopEyeTracking]);
+
+  useEffect(() => {
+    if (activeTab !== "eye" && isEyeActiveRef.current) {
+      stopEyeTracking();
+    }
+  }, [activeTab, stopEyeTracking]);
 
   const handlePauseToggle = async (): Promise<void> => {
     if (!isActive) {
@@ -434,67 +680,146 @@ const App: React.FC = () => {
 
       <section className="glass-card w-full">
         <p className="chip-label">Browser Assist</p>
-        <h1 className="hero-title mt-3">Gesture Navigation Deck</h1>
+        <h1 className="hero-title mt-3">Assistive Control Panel</h1>
         <p className="hero-copy mt-3">
-          Hands are tracked locally in this popup using MediaPipe. No webcam
-          data leaves your device.
+          Choose a control mode for this session. All processing stays on your
+          device.
         </p>
 
-        <div className="camera-shell mt-5">
-          <video ref={videoRef} className="camera-feed" muted playsInline />
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <div className="metric-card">
-            <p className="metric-kicker">Engine</p>
-            <p className="metric-value">{isActive ? "Running" : "Stopped"}</p>
-          </div>
-          <div className="metric-card">
-            <p className="metric-kicker">Status</p>
-            <p className="metric-value">{isPaused ? "Paused" : "Listening"}</p>
-          </div>
-          <div className="metric-card col-span-2">
-            <p className="metric-kicker">Last Gesture</p>
-            <p className="metric-value">{lastGesture}</p>
-            <p className="status-note mt-1">{statusText}</p>
-          </div>
-        </div>
-
-        <div className="mt-6 flex gap-2">
-          {!isActive ? (
-            <button
-              className="primary-cta w-full"
-              onClick={() => void startEngine()}
-            >
-              Start Gesture Control
-            </button>
-          ) : (
-            <button
-              className="primary-cta w-full"
-              onClick={() => void stopEngine()}
-            >
-              Stop Engine
-            </button>
-          )}
+        <div className="tab-bar mt-5" role="tablist">
           <button
-            className="counter-btn counter-btn-primary"
-            onClick={() => void handlePauseToggle()}
+            className={`tab-btn ${activeTab === "gesture" ? "tab-btn-active" : ""}`}
+            role="tab"
+            aria-selected={activeTab === "gesture"}
+            onClick={() => setActiveTab("gesture")}
           >
-            {isPaused ? "Resume" : "Pause"}
+            Gesture Control
+          </button>
+          <button
+            className={`tab-btn ${activeTab === "eye" ? "tab-btn-active" : ""}`}
+            role="tab"
+            aria-selected={activeTab === "eye"}
+            onClick={() => setActiveTab("eye")}
+          >
+            Eye Tracking
           </button>
         </div>
 
-        {/*<button
-          className="counter-btn counter-btn-ghost mt-3 w-full"
-          onClick={handleGoToOptions}
-        >
-          Open Options Panel
-        </button>*/}
+        {activeTab === "gesture" ? (
+          <section role="tabpanel" aria-label="Gesture control" className="mt-4">
+            <p className="hero-copy mt-2">
+              Hands are tracked locally in this popup using MediaPipe. No webcam
+              data leaves your device.
+            </p>
 
-        <p className="status-note mt-4">
-          Gestures: swipe left/right, swipe up/down, pinch in/out, point +
-          dwell, open palm to pause.
-        </p>
+            <div className="camera-shell mt-5">
+              <video ref={videoRef} className="camera-feed" muted playsInline />
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="metric-card">
+                <p className="metric-kicker">Engine</p>
+                <p className="metric-value">{isActive ? "Running" : "Stopped"}</p>
+              </div>
+              <div className="metric-card">
+                <p className="metric-kicker">Status</p>
+                <p className="metric-value">{isPaused ? "Paused" : "Listening"}</p>
+              </div>
+              <div className="metric-card col-span-2">
+                <p className="metric-kicker">Last Gesture</p>
+                <p className="metric-value">{lastGesture}</p>
+                <p className="status-note mt-1">{statusText}</p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-2">
+              {!isActive ? (
+                <button
+                  className="primary-cta w-full"
+                  onClick={() => void startEngine()}
+                >
+                  Start Gesture Control
+                </button>
+              ) : (
+                <button
+                  className="primary-cta w-full"
+                  onClick={() => void stopEngine()}
+                >
+                  Stop Engine
+                </button>
+              )}
+              <button
+                className="counter-btn counter-btn-primary"
+                onClick={() => void handlePauseToggle()}
+              >
+                {isPaused ? "Resume" : "Pause"}
+              </button>
+            </div>
+
+            <p className="status-note mt-4">
+              Gestures: swipe left/right, swipe up/down, pinch in/out, point +
+              dwell, open palm to pause.
+            </p>
+          </section>
+        ) : (
+          <section role="tabpanel" aria-label="Eye tracking" className="mt-4">
+            <div className="eyetrack-shell">
+              <p className="metric-kicker">Eye tracking</p>
+              <p className="hero-copy mt-2">
+                This mode uses MediaPipe face landmarks to estimate gaze. We
+                will add calibration and pointer control next.
+              </p>
+
+              <div className="camera-shell mt-5">
+                <video ref={eyeVideoRef} className="camera-feed" muted playsInline />
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="metric-card">
+                  <p className="metric-kicker">Engine</p>
+                  <p className="metric-value">
+                    {isEyeActive ? "Running" : "Stopped"}
+                  </p>
+                </div>
+                <div className="metric-card">
+                  <p className="metric-kicker">Status</p>
+                  <p className="metric-value">{eyeStatusText}</p>
+                </div>
+                <div className="metric-card col-span-2">
+                  <p className="metric-kicker">Gaze sample</p>
+                  <p className="metric-value">
+                    {lastGaze
+                      ? `${Math.round(lastGaze.x * 100)}% x ${Math.round(lastGaze.y * 100)}%`
+                      : "None"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex gap-2">
+                {!isEyeActive ? (
+                  <button
+                    className="primary-cta w-full"
+                    onClick={() => void startEyeTracking()}
+                  >
+                    Start Eye Tracking
+                  </button>
+                ) : (
+                  <button
+                    className="primary-cta w-full"
+                    onClick={stopEyeTracking}
+                  >
+                    Stop Eye Tracking
+                  </button>
+                )}
+              </div>
+
+              <p className="status-note mt-4">
+                Next step: add calibration points and map gaze to a dwell
+                pointer.
+              </p>
+            </div>
+          </section>
+        )}
       </section>
     </main>
   );

@@ -15,10 +15,16 @@ module.exports = {
     filename: "[name].js",
   },
   resolve: {
-    extensions: [".ts", ".tsx", ".js"],
+    extensions: [".ts", ".tsx", ".js", ".mjs"],
   },
   module: {
     rules: [
+      {
+        test: /\.mjs$/,
+        resolve: {
+          fullySpecified: false,
+        },
+      },
       {
         test: /\.(ts|tsx)$/,
         use: "ts-loader",
