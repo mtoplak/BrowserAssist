@@ -7,6 +7,7 @@ import {
   HandLandmarker,
 } from "@mediapipe/tasks-vision";
 import type {
+  ExtensionRuntimeMessage,
   GestureAction,
   GestureRuntimeMessage,
 } from "./tools/gestureTypes";
@@ -14,6 +15,7 @@ import "./index.css";
 
 const ACTION_COOLDOWN_MS = 750;
 const POINT_FRAME_INTERVAL_MS = 75;
+const EYE_POINT_INTERVAL_MS = 75;
 const SWIPE_THRESHOLD = 0.085;
 const PINCH_DELTA_THRESHOLD = 0.014;
 
@@ -85,9 +87,21 @@ const distance = (
 
 type PopupTab = "gesture" | "eye";
 type EyeGazeSample = { x: number; y: number } | null;
+type EyeMapping = { ax: number; bx: number; ay: number; by: number } | null;
 
 const LEFT_IRIS = [468, 469, 470, 471];
 const RIGHT_IRIS = [472, 473, 474, 475];
+const CALIBRATION_POINTS: Array<{ x: number; y: number }> = [
+  { x: 0.1, y: 0.1 },
+  { x: 0.5, y: 0.1 },
+  { x: 0.9, y: 0.1 },
+  { x: 0.1, y: 0.5 },
+  { x: 0.5, y: 0.5 },
+  { x: 0.9, y: 0.5 },
+  { x: 0.1, y: 0.9 },
+  { x: 0.5, y: 0.9 },
+  { x: 0.9, y: 0.9 },
+];
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<PopupTab>("gesture");
@@ -98,6 +112,14 @@ const App: React.FC = () => {
   const [isEyeActive, setIsEyeActive] = useState<boolean>(false);
   const [eyeStatusText, setEyeStatusText] = useState<string>("Idle");
   const [lastGaze, setLastGaze] = useState<EyeGazeSample>(null);
+  const [isCalibrating, setIsCalibrating] = useState<boolean>(false);
+  const [calibrationIndex, setCalibrationIndex] = useState<number>(0);
+  const [calibrationSamples, setCalibrationSamples] = useState<
+    Array<EyeGazeSample>
+  >([]);
+  const lastGazeRef = useRef<EyeGazeSample>(null);
+  const eyeMappingRef = useRef<EyeMapping>(null);
+  const calibrationSamplesRef = useRef<Array<EyeGazeSample>>([]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -110,6 +132,7 @@ const App: React.FC = () => {
   const isActiveRef = useRef<boolean>(false);
   const isPausedRef = useRef<boolean>(false);
   const isEyeActiveRef = useRef<boolean>(false);
+  const lastEyePointTsRef = useRef<number>(0);
   const lastActionTsRef = useRef<number>(0);
   const lastPointTsRef = useRef<number>(0);
   const wristHistoryRef = useRef<Array<{ x: number; y: number; t: number }>>(
@@ -121,8 +144,64 @@ const App: React.FC = () => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
 
-  const sendToActiveTab = useCallback(
-    async (message: GestureRuntimeMessage): Promise<void> => {
+  useEffect(() => {
+    lastGazeRef.current = lastGaze;
+  }, [lastGaze]);
+
+  const computeLinearMapping = (
+    samples: Array<{ gaze: { x: number; y: number }; target: { x: number; y: number } }>,
+  ): EyeMapping => {
+    const n = samples.length;
+    if (n < 3) {
+      return null;
+    }
+
+    let sumGx = 0;
+    let sumGy = 0;
+    let sumTx = 0;
+    let sumTy = 0;
+    let sumGxTx = 0;
+    let sumGyTy = 0;
+    let sumGx2 = 0;
+    let sumGy2 = 0;
+
+    samples.forEach(({ gaze, target }) => {
+      sumGx += gaze.x;
+      sumGy += gaze.y;
+      sumTx += target.x;
+      sumTy += target.y;
+      sumGxTx += gaze.x * target.x;
+      sumGyTy += gaze.y * target.y;
+      sumGx2 += gaze.x * gaze.x;
+      sumGy2 += gaze.y * gaze.y;
+    });
+
+    const denomX = n * sumGx2 - sumGx * sumGx;
+    const denomY = n * sumGy2 - sumGy * sumGy;
+    if (denomX === 0 || denomY === 0) {
+      return null;
+    }
+
+    const ax = (n * sumGxTx - sumGx * sumTx) / denomX;
+    const bx = (sumTx - ax * sumGx) / n;
+    const ay = (n * sumGyTy - sumGy * sumTy) / denomY;
+    const by = (sumTy - ay * sumGy) / n;
+
+    return { ax, bx, ay, by };
+  };
+
+  const applyMapping = (mapping: EyeMapping, gaze: { x: number; y: number }) => {
+    if (!mapping) {
+      return null;
+    }
+    return {
+      x: clamp01(mapping.ax * gaze.x + mapping.bx),
+      y: clamp01(mapping.ay * gaze.y + mapping.by),
+    };
+  };
+
+    const sendToActiveTab = useCallback(
+      async (message: ExtensionRuntimeMessage): Promise<void> => {
       try {
         const [activeTab] = await chrome.tabs.query({
           active: true,
@@ -474,7 +553,12 @@ const App: React.FC = () => {
     setIsEyeActive(false);
     setEyeStatusText("Stopped");
     setLastGaze(null);
-  }, []);
+    setIsCalibrating(false);
+    setCalibrationIndex(0);
+    setCalibrationSamples([]);
+    eyeMappingRef.current = null;
+    void sendToActiveTab({ source: "eye-tracking", type: "CALIBRATION_STOP" });
+  }, [sendToActiveTab]);
 
   const startEyeTracking = useCallback(async (): Promise<void> => {
     if (isEyeActiveRef.current) {
@@ -610,10 +694,28 @@ const App: React.FC = () => {
         if (leftIris && rightIris) {
           const irisX = (leftIris.x + rightIris.x) / 2;
           const irisY = (leftIris.y + rightIris.y) / 2;
-          setLastGaze({
+          const gaze = {
             x: clamp01(1 - irisX),
             y: clamp01(irisY),
-          });
+          };
+          setLastGaze(gaze);
+
+          const now = Date.now();
+          if (
+            eyeMappingRef.current &&
+            !isCalibrating &&
+            now - lastEyePointTsRef.current > EYE_POINT_INTERVAL_MS
+          ) {
+            lastEyePointTsRef.current = now;
+            const mapped = applyMapping(eyeMappingRef.current, gaze);
+            if (mapped) {
+              await sendToActiveTab({
+                source: "eye-tracking",
+                type: "GAZE_MOVE",
+                payload: mapped,
+              });
+            }
+          }
         } else {
           setLastGaze(null);
         }
@@ -643,6 +745,44 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const startCalibration = (): void => {
+    setCalibrationSamples([]);
+    setCalibrationIndex(0);
+    setIsCalibrating(true);
+    setEyeStatusText("Calibration: click the dots on the page");
+    eyeMappingRef.current = null;
+    calibrationSamplesRef.current = [];
+    void sendToActiveTab({ source: "eye-tracking", type: "CALIBRATION_START" });
+  };
+
+  const handleCalibrationPoint = (index: number): void => {
+    const gazeSample = lastGazeRef.current;
+    if (!gazeSample) {
+      return;
+    }
+    setCalibrationSamples((prev) => {
+      const next = [...prev];
+      next[index] = gazeSample;
+      return next;
+    });
+    calibrationSamplesRef.current[index] = gazeSample;
+    if (index >= CALIBRATION_POINTS.length - 1) {
+      setIsCalibrating(false);
+      const pairs = CALIBRATION_POINTS.map((point, idx) => {
+        const sample = calibrationSamplesRef.current[idx];
+        return sample ? { gaze: sample, target: point } : null;
+      }).filter(
+        (pair): pair is { gaze: { x: number; y: number }; target: { x: number; y: number } } =>
+          pair !== null,
+      );
+      const mapping = computeLinearMapping(pairs);
+      eyeMappingRef.current = mapping;
+      setEyeStatusText(mapping ? "Calibration complete" : "Calibration failed: retry");
+    } else {
+      setCalibrationIndex(index + 1);
+    }
+  };
+
 
   useEffect(() => {
     return () => {
@@ -656,6 +796,37 @@ const App: React.FC = () => {
       stopEyeTracking();
     }
   }, [activeTab, stopEyeTracking]);
+
+  useEffect(() => {
+    const handleMessage = (message: ExtensionRuntimeMessage): void => {
+      if (!message || message.source !== "eye-tracking") {
+        return;
+      }
+
+      switch (message.type) {
+        case "CALIBRATION_POINT": {
+          if (!isCalibrating || typeof message.payload?.index !== "number") {
+            return;
+          }
+          handleCalibrationPoint(message.payload.index);
+          break;
+        }
+        case "CALIBRATION_DONE":
+          setIsCalibrating(false);
+          setEyeStatusText("Calibration captured (mapping next)");
+          break;
+        case "CALIBRATION_STOP":
+          setIsCalibrating(false);
+          setEyeStatusText("Calibration cancelled");
+          break;
+        default:
+          break;
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+    return () => chrome.runtime.onMessage.removeListener(handleMessage);
+  }, [isCalibrating]);
 
   const handlePauseToggle = async (): Promise<void> => {
     if (!isActive) {
@@ -811,11 +982,21 @@ const App: React.FC = () => {
                     Stop Eye Tracking
                   </button>
                 )}
+                <button
+                  className="counter-btn counter-btn-primary"
+                  onClick={() => {
+                    if (!isEyeActive) return;
+                    if (!isCalibrating) startCalibration();
+                    else setEyeStatusText("Click the highlighted dot on the page");
+                  }}
+                >
+                  {!isCalibrating ? "Start Calibration" : "Waiting on Dot"}
+                </button>
               </div>
 
               <p className="status-note mt-4">
-                Next step: add calibration points and map gaze to a dwell
-                pointer.
+                Calibration uses 9 points on the page. Look at the highlighted
+                dot and click it to capture.
               </p>
             </div>
           </section>

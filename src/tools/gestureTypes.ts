@@ -10,6 +10,13 @@ export type GestureAction =
     | "PAUSED"
     | "RESUMED";
 
+export type EyeAction =
+    | "CALIBRATION_START"
+    | "CALIBRATION_STOP"
+    | "CALIBRATION_POINT"
+    | "CALIBRATION_DONE"
+    | "GAZE_MOVE";
+
 export interface GestureRuntimeMessage {
     source: "gesture-engine";
     type: GestureAction;
@@ -20,3 +27,15 @@ export interface GestureRuntimeMessage {
         label?: string;
     };
 }
+
+export interface EyeRuntimeMessage {
+    source: "eye-tracking";
+    type: EyeAction;
+    payload?: {
+        index?: number;
+        x?: number;
+        y?: number;
+    };
+}
+
+export type ExtensionRuntimeMessage = GestureRuntimeMessage | EyeRuntimeMessage;

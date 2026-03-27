@@ -1,12 +1,28 @@
-import type { GestureRuntimeMessage } from "./tools/gestureTypes";
+import type { ExtensionRuntimeMessage, GestureRuntimeMessage } from "./tools/gestureTypes";
 
 const INDICATOR_ID = "browserassist-gesture-indicator";
 const POINTER_ID = "browserassist-pointer";
 const HOVER_RING_ID = "browserassist-hover-ring";
 const OVERLAY_STYLE_ID = "browserassist-gesture-style";
+const CALIBRATION_OVERLAY_ID = "browserassist-calibration-overlay";
+const CALIBRATION_POINT_CLASS = "browserassist-calibration-point";
+const CALIBRATION_ACTIVE_CLASS = "browserassist-calibration-point-active";
+const CALIBRATION_DONE_CLASS = "browserassist-calibration-point-done";
 const DWELL_CLICK_MS = 900;
 const CLICK_COOLDOWN_MS = 900;
 const ACTION_COOLDOWN_MS = 350;
+
+const CALIBRATION_POINTS: Array<{ x: number; y: number }> = [
+    { x: 0.1, y: 0.1 },
+    { x: 0.5, y: 0.1 },
+    { x: 0.9, y: 0.1 },
+    { x: 0.1, y: 0.5 },
+    { x: 0.5, y: 0.5 },
+    { x: 0.9, y: 0.5 },
+    { x: 0.1, y: 0.9 },
+    { x: 0.5, y: 0.9 },
+    { x: 0.9, y: 0.9 },
+];
 
 let pageZoom = 1;
 let indicatorTimeout: number | null = null;
@@ -14,6 +30,7 @@ let dwellStart = 0;
 let lastClickedAt = 0;
 let lastDiscreteAction = 0;
 let currentTarget: Element | null = null;
+let calibrationIndex = 0;
 
 const clamp = (value: number, min: number, max: number): number =>
     Math.max(min, Math.min(max, value));
@@ -67,6 +84,37 @@ const ensureOverlayStyles = (): void => {
       opacity: 0;
       transition: opacity 110ms ease;
     }
+
+        #${CALIBRATION_OVERLAY_ID} {
+            position: fixed;
+            inset: 0;
+            z-index: 2147483644;
+            pointer-events: auto;
+        }
+
+        .${CALIBRATION_POINT_CLASS} {
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            transform: translate(-50%, -50%);
+            background: rgba(248, 250, 252, 0.3);
+            border: 2px solid rgba(148, 163, 184, 0.8);
+            box-shadow: 0 0 0 10px rgba(148, 163, 184, 0.2);
+            cursor: pointer;
+        }
+
+        .${CALIBRATION_ACTIVE_CLASS} {
+            background: rgba(251, 146, 60, 0.9);
+            border-color: rgba(251, 146, 60, 0.95);
+            box-shadow: 0 0 0 12px rgba(251, 146, 60, 0.3);
+        }
+
+        .${CALIBRATION_DONE_CLASS} {
+            background: rgba(34, 211, 238, 0.9);
+            border-color: rgba(34, 211, 238, 0.95);
+            box-shadow: 0 0 0 10px rgba(34, 211, 238, 0.25);
+        }
   `;
     document.documentElement.appendChild(style);
 };
@@ -154,6 +202,78 @@ const hidePointUi = (): void => {
     }
     dwellStart = 0;
     currentTarget = null;
+};
+
+const removeCalibrationOverlay = (): void => {
+    const overlay = document.getElementById(CALIBRATION_OVERLAY_ID);
+    if (overlay) {
+        overlay.remove();
+    }
+    calibrationIndex = 0;
+};
+
+const updateCalibrationMarkers = (overlay: HTMLElement): void => {
+    const markers = Array.from(
+        overlay.querySelectorAll(`.${CALIBRATION_POINT_CLASS}`),
+    ) as HTMLDivElement[];
+    markers.forEach((marker) => {
+        const indexAttr = marker.getAttribute("data-index");
+        if (indexAttr === null) return;
+        const index = Number(indexAttr);
+        marker.classList.toggle(CALIBRATION_ACTIVE_CLASS, index === calibrationIndex);
+        marker.classList.toggle(CALIBRATION_DONE_CLASS, index < calibrationIndex);
+    });
+};
+
+const ensureCalibrationOverlay = (): HTMLDivElement => {
+    ensureOverlayStyles();
+    let overlay = document.getElementById(CALIBRATION_OVERLAY_ID) as HTMLDivElement | null;
+    if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.id = CALIBRATION_OVERLAY_ID;
+        overlay.addEventListener("click", (event) => {
+            const target = event.target as HTMLElement | null;
+            if (!target || !target.classList.contains(CALIBRATION_POINT_CLASS)) {
+                return;
+            }
+            const indexAttr = target.getAttribute("data-index");
+            if (indexAttr === null) {
+                return;
+            }
+            const index = Number(indexAttr);
+            if (index !== calibrationIndex) {
+                return;
+            }
+            chrome.runtime.sendMessage({
+                source: "eye-tracking",
+                type: "CALIBRATION_POINT",
+                payload: { index },
+            });
+            calibrationIndex += 1;
+            if (calibrationIndex >= CALIBRATION_POINTS.length) {
+                chrome.runtime.sendMessage({
+                    source: "eye-tracking",
+                    type: "CALIBRATION_DONE",
+                });
+                removeCalibrationOverlay();
+                return;
+            }
+            updateCalibrationMarkers(overlay);
+        });
+
+        CALIBRATION_POINTS.forEach((point, index) => {
+            const marker = document.createElement("div");
+            marker.className = CALIBRATION_POINT_CLASS;
+            marker.setAttribute("data-index", index.toString());
+            marker.style.left = `${point.x * 100}%`;
+            marker.style.top = `${point.y * 100}%`;
+            overlay.appendChild(marker);
+        });
+
+        document.documentElement.appendChild(overlay);
+    }
+    updateCalibrationMarkers(overlay);
+    return overlay;
 };
 
 const triggerSyntheticClick = (element: Element, x: number, y: number): void => {
@@ -264,8 +384,36 @@ const handleGestureMessage = (message: GestureRuntimeMessage): void => {
     }
 };
 
-chrome.runtime.onMessage.addListener((message: GestureRuntimeMessage) => {
-    handleGestureMessage(message);
+const handleEyeMessage = (message: ExtensionRuntimeMessage): void => {
+    if (!message || message.source !== "eye-tracking") {
+        return;
+    }
+
+    switch (message.type) {
+        case "CALIBRATION_START":
+            calibrationIndex = 0;
+            ensureCalibrationOverlay();
+            showIndicator("Eye calibration started");
+            break;
+        case "CALIBRATION_STOP":
+            removeCalibrationOverlay();
+            showIndicator("Eye calibration stopped");
+            break;
+        case "GAZE_MOVE":
+            handlePointMove({ x: message.payload?.x, y: message.payload?.y });
+            break;
+        default:
+            break;
+    }
+};
+
+chrome.runtime.onMessage.addListener((message: ExtensionRuntimeMessage) => {
+    if (!message) return;
+    if (message.source === "gesture-engine") {
+        handleGestureMessage(message as GestureRuntimeMessage);
+        return;
+    }
+    handleEyeMessage(message);
 });
 
 console.log("BrowserAssist gesture content script running");
