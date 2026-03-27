@@ -7,9 +7,9 @@ export function isOptionsPageOpen(callback: (isOpen: boolean) => void) {
 export const handleOpenOptions = () => {
   const optionsUrl = chrome.runtime.getURL("options.html"); // Correct path
   chrome.tabs.create({ url: optionsUrl });
-}
+};
 
-export  const handleGoToOptions = () => {
+export const handleGoToOptions = () => {
   chrome.tabs.query({ url: chrome.runtime.getURL("options.html") }, function (tabs) {
     if (tabs && tabs.length > 0) {
       chrome.tabs.update(tabs[0].id, { active: true });
@@ -17,4 +17,15 @@ export  const handleGoToOptions = () => {
       handleOpenOptions();
     }
   });
-}
+};
+
+export const handleOpenCheatsheet = () => {
+  const cheatsheetUrl = chrome.runtime.getURL("cheatsheet.html");
+  chrome.tabs.query({ url: cheatsheetUrl }, function (tabs) {
+    if (tabs && tabs.length > 0) {
+      chrome.tabs.update(tabs[0].id, { active: true });
+    } else {
+      chrome.tabs.create({ url: cheatsheetUrl });
+    }
+  });
+};

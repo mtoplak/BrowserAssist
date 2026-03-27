@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
-import type { GestureAction, GestureRuntimeMessage } from "../../tools/gestureTypes";
+import type {
+  GestureAction,
+  GestureRuntimeMessage,
+} from "../../tools/gestureTypes";
 
 const ACTION_COOLDOWN_MS = 750;
 const POINT_FRAME_INTERVAL_MS = 75;
@@ -338,7 +341,8 @@ const GesturePanel: React.FC = () => {
 
         if (!isPausedRef.current && wristHistoryRef.current.length >= 4) {
           const first = wristHistoryRef.current[0];
-          const last = wristHistoryRef.current[wristHistoryRef.current.length - 1];
+          const last =
+            wristHistoryRef.current[wristHistoryRef.current.length - 1];
           const dx = last.x - first.x;
           const dy = last.y - first.y;
 
@@ -446,11 +450,17 @@ const GesturePanel: React.FC = () => {
 
       <div className="mt-6 flex gap-2">
         {!isActive ? (
-          <button className="primary-cta w-full" onClick={() => void startEngine()}>
+          <button
+            className="primary-cta w-full"
+            onClick={() => void startEngine()}
+          >
             Start Gesture Control
           </button>
         ) : (
-          <button className="primary-cta w-full" onClick={() => void stopEngine()}>
+          <button
+            className="primary-cta w-full"
+            onClick={() => void stopEngine()}
+          >
             Stop Engine
           </button>
         )}
@@ -461,11 +471,6 @@ const GesturePanel: React.FC = () => {
           {isPaused ? "Resume" : "Pause"}
         </button>
       </div>
-
-      <p className="status-note mt-4">
-        Gestures: swipe left/right, swipe up/down, pinch in/out, point + dwell,
-        open palm to pause.
-      </p>
     </section>
   );
 };

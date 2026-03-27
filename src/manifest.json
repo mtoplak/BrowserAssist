@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "BrowserAssist",
   "version": "1.0",
-  "description": "Accessible browser navigation with local gesture control",
+  "description": "Accessible browser navigation with local gesture control and eye-tracking support.",
   "icons": {
     "16": "assets/icon16.png",
     "32": "assets/icon32.png",
@@ -12,7 +12,6 @@
   "permissions": ["tabs", "activeTab", "storage", "sidePanel"],
   "host_permissions": ["https://storage.googleapis.com/*"],
   "minimum_chrome_version": "114",
-
   "action": {},
   "side_panel": {
     "default_path": "popup.html"

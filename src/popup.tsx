@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import ReactDOM from "react-dom/client";
 import GesturePanel from "./features/gesture/GesturePanel";
 import EyeTrackingPanel from "./features/eye/EyeTrackingPanel";
+import { handleOpenCheatsheet } from "./tools/functions";
 import "./index.css";
 
 type PopupTab = "gesture" | "eye";
@@ -41,11 +42,14 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        {activeTab === "gesture" ? (
-          <GesturePanel />
-        ) : (
-          <EyeTrackingPanel />
-        )}
+        <button
+          className="counter-btn counter-btn-ghost mt-4 w-full"
+          onClick={handleOpenCheatsheet}
+        >
+          Open Gesture Cheatsheet
+        </button>
+
+        {activeTab === "gesture" ? <GesturePanel /> : <EyeTrackingPanel />}
       </section>
     </main>
   );

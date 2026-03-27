@@ -9,6 +9,7 @@ module.exports = {
     content: path.join(__dirname, "src/content.ts"),
     options: path.join(__dirname, "src/options.tsx"),
     permission: path.join(__dirname, "src/permission.ts"),
+    cheatsheet: path.join(__dirname, "src/cheatsheet.tsx"),
   },
   output: {
     path: path.join(__dirname, "dist"),
@@ -52,6 +53,11 @@ module.exports = {
       template: path.join(__dirname, "src/popup.html"), // Create popup.html
       filename: "popup.html",
       chunks: ["popup"],
+    }),
+    new HtmlWebpackPlugin({
+      template: path.join(__dirname, "src/cheatsheet.html"),
+      filename: "cheatsheet.html",
+      chunks: ["cheatsheet"],
     }),
     new CopyWebpackPlugin({
       patterns: [
