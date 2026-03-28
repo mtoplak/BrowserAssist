@@ -8,6 +8,7 @@ const CALIBRATION_OVERLAY_ID = "browserassist-calibration-overlay";
 const CALIBRATION_POINT_CLASS = "browserassist-calibration-point";
 const CALIBRATION_ACTIVE_CLASS = "browserassist-calibration-point-active";
 const CALIBRATION_DONE_CLASS = "browserassist-calibration-point-done";
+const CALIBRATION_HINT_ID = "browserassist-calibration-hint";
 const DWELL_CLICK_MS = 900;
 const CLICK_COOLDOWN_MS = 900;
 const ACTION_COOLDOWN_MS = 350;
@@ -90,6 +91,24 @@ const ensureOverlayStyles = (): void => {
             inset: 0;
             z-index: 2147483644;
             pointer-events: auto;
+            background: rgba(2, 6, 23, 0.35);
+        }
+
+        #${CALIBRATION_HINT_ID} {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2147483646;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.9);
+            color: #e2e8f0;
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            font: 600 12px/1.2 "Segoe UI", sans-serif;
+            letter-spacing: 0.03em;
+            box-shadow: 0 12px 24px rgba(2, 6, 23, 0.35);
+            pointer-events: none;
         }
 
         .${CALIBRATION_POINT_CLASS} {
@@ -209,6 +228,10 @@ const removeCalibrationOverlay = (): void => {
     if (overlay) {
         overlay.remove();
     }
+    const hint = document.getElementById(CALIBRATION_HINT_ID);
+    if (hint) {
+        hint.remove();
+    }
     calibrationIndex = 0;
 };
 
@@ -223,6 +246,10 @@ const updateCalibrationMarkers = (overlay: HTMLElement): void => {
         marker.classList.toggle(CALIBRATION_ACTIVE_CLASS, index === calibrationIndex);
         marker.classList.toggle(CALIBRATION_DONE_CLASS, index < calibrationIndex);
     });
+    const hint = document.getElementById(CALIBRATION_HINT_ID) as HTMLDivElement | null;
+    if (hint) {
+        hint.textContent = `Calibration ${calibrationIndex + 1} / ${CALIBRATION_POINTS.length} — click the highlighted dot`;
+    }
 };
 
 const ensureCalibrationOverlay = (): HTMLDivElement => {
@@ -231,6 +258,10 @@ const ensureCalibrationOverlay = (): HTMLDivElement => {
     if (!overlay) {
         overlay = document.createElement("div");
         overlay.id = CALIBRATION_OVERLAY_ID;
+        const hint = document.createElement("div");
+        hint.id = CALIBRATION_HINT_ID;
+        hint.textContent = `Calibration ${calibrationIndex + 1} / ${CALIBRATION_POINTS.length} — click the highlighted dot`;
+        overlay.appendChild(hint);
         overlay.addEventListener("click", (event) => {
             const target = event.target as HTMLElement | null;
             if (!target || !target.classList.contains(CALIBRATION_POINT_CLASS)) {
@@ -260,7 +291,6 @@ const ensureCalibrationOverlay = (): HTMLDivElement => {
             }
             updateCalibrationMarkers(overlay);
         });
-
         CALIBRATION_POINTS.forEach((point, index) => {
             const marker = document.createElement("div");
             marker.className = CALIBRATION_POINT_CLASS;
@@ -383,7 +413,6 @@ const handleGestureMessage = (message: GestureRuntimeMessage): void => {
             break;
     }
 };
-
 const handleEyeMessage = (message: ExtensionRuntimeMessage): void => {
     if (!message || message.source !== "eye-tracking") {
         return;

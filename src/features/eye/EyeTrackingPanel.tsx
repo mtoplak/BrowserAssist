@@ -3,6 +3,10 @@ import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import type { ExtensionRuntimeMessage } from "../../tools/gestureTypes";
 
 const EYE_POINT_INTERVAL_MS = 75;
+const EMA_ALPHA = 0.3;
+const CALIBRATION_SAMPLE_WINDOW_MS = 650;
+const CALIBRATION_SAMPLE_TARGET = 12;
+const CALIBRATION_SAMPLE_MIN = 6;
 const LEFT_IRIS = [468, 469, 470, 471];
 const RIGHT_IRIS = [472, 473, 474, 475];
 const CALIBRATION_POINTS: Array<{ x: number; y: number }> = [
@@ -66,6 +70,12 @@ const EyeTrackingPanel: React.FC = () => {
   const lastGazeRef = useRef<EyeGazeSample>(null);
   const eyeMappingRef = useRef<EyeMapping>(null);
   const calibrationSamplesRef = useRef<Array<EyeGazeSample>>([]);
+  const smoothedGazeRef = useRef<{ x: number; y: number } | null>(null);
+  const pendingCalibrationRef = useRef<{
+    index: number;
+    startedAt: number;
+    samples: Array<{ x: number; y: number }>;
+  } | null>(null);
 
   useEffect(() => {
     lastGazeRef.current = lastGaze;
@@ -111,7 +121,10 @@ const EyeTrackingPanel: React.FC = () => {
   };
 
   const computeLinearMapping = (
-    samples: Array<{ gaze: { x: number; y: number }; target: { x: number; y: number } }>,
+    samples: Array<{
+      gaze: { x: number; y: number };
+      target: { x: number; y: number };
+    }>,
   ): EyeMapping => {
     const n = samples.length;
     if (n < 3) {
@@ -152,7 +165,10 @@ const EyeTrackingPanel: React.FC = () => {
     return { ax, bx, ay, by };
   };
 
-  const applyMapping = (mapping: EyeMapping, gaze: { x: number; y: number }) => {
+  const applyMapping = (
+    mapping: EyeMapping,
+    gaze: { x: number; y: number },
+  ) => {
     if (!mapping) {
       return null;
     }
@@ -160,6 +176,62 @@ const EyeTrackingPanel: React.FC = () => {
       x: clamp01(mapping.ax * gaze.x + mapping.bx),
       y: clamp01(mapping.ay * gaze.y + mapping.by),
     };
+  };
+
+  const finalizeCalibrationPoint = (
+    index: number,
+    samples: Array<{ x: number; y: number }>,
+  ) => {
+    if (samples.length < CALIBRATION_SAMPLE_MIN) {
+      setEyeStatusText("Calibration failed: hold gaze steady and retry");
+      pendingCalibrationRef.current = null;
+      return;
+    }
+
+    const sum = samples.reduce(
+      (acc, sample) => {
+        acc.x += sample.x;
+        acc.y += sample.y;
+        return acc;
+      },
+      { x: 0, y: 0 },
+    );
+    const averaged = {
+      x: sum.x / samples.length,
+      y: sum.y / samples.length,
+    };
+
+    setCalibrationSamples((prev) => {
+      const next = [...prev];
+      next[index] = averaged;
+      return next;
+    });
+    calibrationSamplesRef.current[index] = averaged;
+
+    if (index >= CALIBRATION_POINTS.length - 1) {
+      setIsCalibrating(false);
+      const pairs = CALIBRATION_POINTS.map((point, idx) => {
+        const sample = calibrationSamplesRef.current[idx];
+        return sample ? { gaze: sample, target: point } : null;
+      }).filter(
+        (
+          pair,
+        ): pair is {
+          gaze: { x: number; y: number };
+          target: { x: number; y: number };
+        } => pair !== null,
+      );
+      const mapping = computeLinearMapping(pairs);
+      eyeMappingRef.current = mapping;
+      setEyeStatusText(
+        mapping ? "Calibration complete" : "Calibration failed: retry",
+      );
+    } else {
+      setCalibrationIndex(index + 1);
+      setEyeStatusText("Calibration: click the next dot");
+    }
+
+    pendingCalibrationRef.current = null;
   };
 
   const stopEyeTracking = useCallback((): void => {
@@ -195,6 +267,7 @@ const EyeTrackingPanel: React.FC = () => {
     setCalibrationIndex(0);
     setCalibrationSamples([]);
     eyeMappingRef.current = null;
+    smoothedGazeRef.current = null;
     void sendToActiveTab({ source: "eye-tracking", type: "CALIBRATION_STOP" });
   }, [sendToActiveTab]);
 
@@ -301,6 +374,7 @@ const EyeTrackingPanel: React.FC = () => {
       isEyeActiveRef.current = true;
       setIsEyeActive(true);
       setEyeStatusText("Tracking gaze (calibration next)");
+      smoothedGazeRef.current = null;
 
       const detectLoop = async (): Promise<void> => {
         if (
@@ -338,6 +412,18 @@ const EyeTrackingPanel: React.FC = () => {
           };
           setLastGaze(gaze);
 
+          if (pendingCalibrationRef.current) {
+            const pending = pendingCalibrationRef.current;
+            pending.samples.push(gaze);
+            const elapsed = now - pending.startedAt;
+            if (
+              pending.samples.length >= CALIBRATION_SAMPLE_TARGET ||
+              elapsed >= CALIBRATION_SAMPLE_WINDOW_MS
+            ) {
+              finalizeCalibrationPoint(pending.index, pending.samples);
+            }
+          }
+
           const nowTs = Date.now();
           if (
             eyeMappingRef.current &&
@@ -347,10 +433,18 @@ const EyeTrackingPanel: React.FC = () => {
             lastEyePointTsRef.current = nowTs;
             const mapped = applyMapping(eyeMappingRef.current, gaze);
             if (mapped) {
+              const previous = smoothedGazeRef.current;
+              const smoothed = previous
+                ? {
+                    x: EMA_ALPHA * mapped.x + (1 - EMA_ALPHA) * previous.x,
+                    y: EMA_ALPHA * mapped.y + (1 - EMA_ALPHA) * previous.y,
+                  }
+                : mapped;
+              smoothedGazeRef.current = smoothed;
               await sendToActiveTab({
                 source: "eye-tracking",
                 type: "GAZE_MOVE",
-                payload: mapped,
+                payload: smoothed,
               });
             }
           }
@@ -390,35 +484,21 @@ const EyeTrackingPanel: React.FC = () => {
     setEyeStatusText("Calibration: click the dots on the page");
     eyeMappingRef.current = null;
     calibrationSamplesRef.current = [];
+    pendingCalibrationRef.current = null;
     void sendToActiveTab({ source: "eye-tracking", type: "CALIBRATION_START" });
   };
-
   const handleCalibrationPoint = (index: number): void => {
     const gazeSample = lastGazeRef.current;
     if (!gazeSample) {
+      setEyeStatusText("No gaze detected. Keep your face in view and retry.");
       return;
     }
-    setCalibrationSamples((prev) => {
-      const next = [...prev];
-      next[index] = gazeSample;
-      return next;
-    });
-    calibrationSamplesRef.current[index] = gazeSample;
-    if (index >= CALIBRATION_POINTS.length - 1) {
-      setIsCalibrating(false);
-      const pairs = CALIBRATION_POINTS.map((point, idx) => {
-        const sample = calibrationSamplesRef.current[idx];
-        return sample ? { gaze: sample, target: point } : null;
-      }).filter(
-        (pair): pair is { gaze: { x: number; y: number }; target: { x: number; y: number } } =>
-          pair !== null,
-      );
-      const mapping = computeLinearMapping(pairs);
-      eyeMappingRef.current = mapping;
-      setEyeStatusText(mapping ? "Calibration complete" : "Calibration failed: retry");
-    } else {
-      setCalibrationIndex(index + 1);
-    }
+    pendingCalibrationRef.current = {
+      index,
+      startedAt: Date.now(),
+      samples: [gazeSample],
+    };
+    setEyeStatusText("Hold gaze for a moment…");
   };
 
   useEffect(() => {
@@ -461,10 +541,9 @@ const EyeTrackingPanel: React.FC = () => {
   return (
     <section role="tabpanel" aria-label="Eye tracking" className="mt-4">
       <div className="eyetrack-shell">
-        <p className="metric-kicker">Eye tracking</p>
         <p className="hero-copy mt-2">
-          This mode uses MediaPipe face landmarks to estimate gaze. We will add
-          calibration and pointer control next.
+          This mode uses MediaPipe face landmarks to estimate gaze, with
+          calibration and dwell pointer control.
         </p>
 
         <div className="camera-shell mt-5">
@@ -474,7 +553,9 @@ const EyeTrackingPanel: React.FC = () => {
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div className="metric-card">
             <p className="metric-kicker">Engine</p>
-            <p className="metric-value">{isEyeActive ? "Running" : "Stopped"}</p>
+            <p className="metric-value">
+              {isEyeActive ? "Running" : "Stopped"}
+            </p>
           </div>
           <div className="metric-card">
             <p className="metric-kicker">Status</p>
@@ -517,7 +598,7 @@ const EyeTrackingPanel: React.FC = () => {
 
         <p className="status-note mt-4">
           Calibration uses 9 points on the page. Look at the highlighted dot and
-          click it to capture.
+          click it, then hold your gaze briefly to capture multiple samples.
         </p>
       </div>
     </section>
