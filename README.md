@@ -1,98 +1,111 @@
-# BrowserAssist Chrome Extension
+# BrowserAssist
 
-This is a Chrome extension development template built with modern frontend technologies, designed to help developers quickly create powerful Chrome extensions. The project integrates **React**, **TypeScript**, **Tailwind CSS**, and **Webpack**, with a built-in React Hook for interacting with `chrome.storage` and support for communication between `popup` and `options` pages.
-
-## Project Purpose
-
-BrowserAssist is being developed as an accessibility-focused browser assistant, especially for disabled users who benefit from alternative interaction methods.
-
-The goal is to make web navigation and actions easier through assistive inputs such as:
-
-- Eye tracking
-- Computer vision-based interaction
-
-This extension acts as the browser-side interface for those assistive experiences.
+An accessibility-focused Chrome extension that lets users navigate the web using hand gestures and eye tracking. All processing runs locally via MediaPipe — no webcam data leaves your device.
 
 ## Features
 
-- **React**: Build dynamic UIs with a component-based approach.
-- **TypeScript**: Ensure type safety and improve code maintainability.
-- **Tailwind CSS**: Rapidly create beautiful, responsive interfaces.
-- **Webpack**: Modular bundling for development and production environments.
-- **Chrome Storage Hook**: A custom React Hook to simplify `chrome.storage` interactions.
-- **Popup & Options Interaction**: Enable communication between the extension’s `popup` and `options` pages.
-- **Modular Design**: Easily extensible, ideal for rapid prototyping.
+### Hand Gesture Control
+
+Real-time hand tracking through your webcam with support for:
+
+| Gesture | Action |
+|---------|--------|
+| Point up (hold) | Scroll up |
+| Point down (hold) | Scroll down |
+| Point + dwell | Click element under pointer |
+| Swipe left | Browser back |
+| Swipe right | Browser forward |
+| Pinch in | Zoom out |
+| Pinch out | Zoom in |
+| Open palm (hold) | Zoom out |
+
+A built-in gesture cheatsheet is accessible from the extension panel.
+
+### Eye Tracking
+
+Gaze-based control with a 9-point calibration system:
+
+- Iris detection via MediaPipe FaceLandmarker
+- Dwell clicking (hold gaze on an element to click)
+- Edge-based scrolling (look at top/bottom of screen to scroll)
+- Smoothed gaze point via exponential moving average
+
+### Visual Overlays
+
+The content script renders on-page indicators:
+
+- Blue pointer dot showing current gaze/finger position
+- Dashed ring highlighting the hovered element
+- Status badge (top-right) showing the current action
+
+### Privacy
+
+- Camera frames are processed locally in the browser
+- Only landmark coordinates are passed to the content script
+- No external servers or telemetry
 
 ## Tech Stack
 
-- React
-- TypeScript
-- Tailwind CSS
-- Webpack
-- Chrome Extension APIs
-- DaisyUI
+- React 19, TypeScript, Tailwind CSS, DaisyUI
+- Webpack 5 (Manifest V3)
+- MediaPipe Tasks Vision (hand + face landmark detection)
+- Chrome Side Panel API
 
-## How To Use In Development
+## Getting Started
 
-1. Install dependencies
+### Prerequisites
 
-   ```bash
-   npm install
-   ```
+- Node.js
+- Google Chrome
 
-2. Build
+### Install and build
 
-   ```bash
-   npm run build
-   ```
+```bash
+npm install
+npm run build
+```
 
-3. Load into Chrome
-   - Open Chrome and navigate to `chrome://extensions/`
-   - Enable Developer mode
-   - Click Load unpacked and select the `dist` folder from the project root
+### Load into Chrome
 
-4. Develop and watch for changes
+1. Navigate to `chrome://extensions/`
+2. Enable **Developer mode**
+3. Click **Load unpacked** and select the `dist` folder
 
-   ```bash
-   npm run watch
-   ```
+### Development
 
-   Note: If you change files such as `src/content.ts`, `src/background.ts`, or `src/manifest.json`, you may need to reload the extension in `chrome://extensions/`.
+```bash
+npm run watch
+```
 
-5. (Optional) Run development build directly
+Changes to `src/content.ts`, `src/background.ts`, or `src/manifest.json` require reloading the extension in `chrome://extensions/`.
 
-   ```bash
-   npm run dev
-   ```
+## Project Structure
 
-Original template README: https://github.com/pickknow/chrome-extension-react-Tailwindcss-typescript
-
-## Important Files
-
-- `src/popup.tsx`: Extension popup interface
-- `src/options.tsx`: Options page interface and settings controls
-- `src/content.ts`: Content script that runs in the context of web pages
-- `src/background.ts`: Background script for extension lifecycle/background tasks
-- `src/tools/localStore.ts`: React hook wrapper for `chrome.storage.local`
-- `src/tools/functions.ts`: Utility functions (including opening/focusing options)
-- `src/compontments/CountShow.tsx`: Example reusable component using local storage
-- `src/manifest.json`: Extension manifest (permissions, scripts, metadata)
-- `src/popup.html`: Popup HTML entry
-- `src/options.html`: Options HTML entry
-- `src/index.css`: Shared Tailwind and custom UI styles
-- `webpack.config.js`: Webpack build configuration
-- `tailwind.config.js`: Tailwind CSS configuration
+```
+src/
+  popup.tsx                     Main side-panel UI (gesture + eye tracking tabs)
+  content.ts                    Page overlays and action handlers
+  background.ts                 Service worker (side panel setup)
+  cheatsheet.tsx                Gesture reference page
+  permission.ts                 Camera permission popup
+  manifest.json                 Extension manifest
+  features/
+    gesture/GesturePanel.tsx    Hand tracking engine
+    eye/EyeTrackingPanel.tsx    Eye tracking engine
+  tools/
+    gestureTypes.ts             Shared message/action types
+    localStore.ts               React hook for chrome.storage.local
+```
 
 ## Contributing
 
-Contributions are welcome! Feel free to submit Issues or Pull Requests to improve this project. Follow these steps:
+Contributions are welcome. To get started:
 
-1. Fork this repository.
-2. Create a new branch (git checkout -b feature/your-feature).
-3. Commit your changes (git commit -m "Add new feature").
-4. Push to the branch (git push origin feature/your-feature).
-5. Create a Pull Request.
+1. Fork this repository
+2. Create a branch (`git checkout -b feature/your-feature`)
+3. Commit your changes
+4. Push and open a pull request
 
 ## License
 
-This project is licensed under the MIT License (LICENSE).
+MIT

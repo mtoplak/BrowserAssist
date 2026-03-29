@@ -5,10 +5,18 @@ import type {
   GestureRuntimeMessage,
 } from "../../tools/gestureTypes";
 
-const ACTION_COOLDOWN_MS = 750;
+const ACTION_COOLDOWN_MS = 700;
 const POINT_FRAME_INTERVAL_MS = 75;
-const SWIPE_THRESHOLD = 0.085;
+const SWIPE_X_THRESHOLD = 0.06;
+const SWIPE_DOMINANCE_RATIO = 1.3;
 const PINCH_DELTA_THRESHOLD = 0.014;
+const PINCH_START_DISTANCE = 0.14;
+const PINCH_RELEASE_DISTANCE = 0.18;
+const PINCH_MAX_HAND_TRAVEL = 0.045;
+const DISCRETE_GESTURE_LOCK_MS = 800;
+const OPEN_PALM_ZOOM_HOLD_MS = 350;
+const OPEN_PALM_MAX_HAND_TRAVEL = 0.025;
+const POINT_SCROLL_HOLD_MS = 3000;
 
 const getStartupErrorMessage = (error: unknown): string => {
   if (error instanceof DOMException) {
@@ -55,6 +63,18 @@ const isPointGesture = (
   return indexUp && middleDown && ringDown && pinkyDown;
 };
 
+const isPointDownGesture = (
+  landmarks: Array<{ x: number; y: number; z: number }>,
+): boolean => {
+  const indexDown =
+    landmarks[8].y > landmarks[6].y && landmarks[6].y > landmarks[5].y;
+  // When hand is inverted, curled finger tips sit above their PIPs
+  const middleFolded = landmarks[12].y < landmarks[10].y;
+  const ringFolded = landmarks[16].y < landmarks[14].y;
+  const pinkyFolded = landmarks[20].y < landmarks[18].y;
+  return indexDown && middleFolded && ringFolded && pinkyFolded;
+};
+
 const isOpenPalm = (
   landmarks: Array<{ x: number; y: number; z: number }>,
 ): boolean => {
@@ -65,6 +85,9 @@ const isOpenPalm = (
   const thumbOpen = Math.abs(landmarks[4].x - landmarks[3].x) > 0.03;
   return indexUp && middleUp && ringUp && pinkyUp && thumbOpen;
 };
+
+const isPinchPose = (pinchDistance: number): boolean =>
+  pinchDistance < PINCH_START_DISTANCE;
 
 const distance = (
   a: { x: number; y: number; z: number },
@@ -89,11 +112,16 @@ const GesturePanel: React.FC = () => {
   const isActiveRef = useRef<boolean>(false);
   const isPausedRef = useRef<boolean>(false);
   const lastActionTsRef = useRef<number>(0);
+  const discreteGestureLockUntilRef = useRef<number>(0);
   const lastPointTsRef = useRef<number>(0);
   const wristHistoryRef = useRef<Array<{ x: number; y: number; t: number }>>(
     [],
   );
-  const previousPinchDistanceRef = useRef<number | null>(null);
+  const pinchAnchorDistanceRef = useRef<number | null>(null);
+  const openPalmHoldStartRef = useRef<number | null>(null);
+  const openPalmZoomConsumedRef = useRef<boolean>(false);
+  const pointUpHoldStartRef = useRef<number | null>(null);
+  const pointDownHoldStartRef = useRef<number | null>(null);
 
   useEffect(() => {
     isPausedRef.current = isPaused;
@@ -123,13 +151,14 @@ const GesturePanel: React.FC = () => {
       label: string,
       payload?: GestureRuntimeMessage["payload"],
       useCooldown: boolean = true,
-    ): Promise<void> => {
+    ): Promise<boolean> => {
       const now = Date.now();
       if (useCooldown && now - lastActionTsRef.current < ACTION_COOLDOWN_MS) {
-        return;
+        return false;
       }
       if (useCooldown) {
         lastActionTsRef.current = now;
+        discreteGestureLockUntilRef.current = now + DISCRETE_GESTURE_LOCK_MS;
       }
 
       setLastGesture(label);
@@ -138,6 +167,7 @@ const GesturePanel: React.FC = () => {
         type,
         payload: { ...payload, label },
       });
+      return true;
     },
     [sendToActiveTab],
   );
@@ -167,7 +197,11 @@ const GesturePanel: React.FC = () => {
       handLandmarkerRef.current = null;
     }
 
-    previousPinchDistanceRef.current = null;
+    pinchAnchorDistanceRef.current = null;
+    openPalmHoldStartRef.current = null;
+    openPalmZoomConsumedRef.current = false;
+    pointUpHoldStartRef.current = null;
+    pointDownHoldStartRef.current = null;
     wristHistoryRef.current = [];
     await triggerAction("POINT_IDLE", "Pointer idle", undefined, false);
   }, [triggerAction]);
@@ -235,7 +269,7 @@ const GesturePanel: React.FC = () => {
       return;
     }
 
-    setStatusText("Starting camera…");
+    setStatusText("Starting camera...");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -295,8 +329,8 @@ const GesturePanel: React.FC = () => {
         const landmarks = result.landmarks?.[0];
 
         if (!landmarks || landmarks.length === 0) {
-          previousPinchDistanceRef.current = null;
           wristHistoryRef.current = [];
+          pinchAnchorDistanceRef.current = null;
           await triggerAction("POINT_IDLE", "Pointer idle", undefined, false);
           rafRef.current = requestAnimationFrame(() => {
             void detectLoop();
@@ -310,14 +344,49 @@ const GesturePanel: React.FC = () => {
           wristHistoryRef.current.shift();
         }
 
+        const pinchDistance = distance(landmarks[4], landmarks[8]);
         const isPointing = isPointGesture(landmarks);
         const openPalm = isOpenPalm(landmarks);
+        const pinchPose = isPinchPose(pinchDistance);
+        const gesturesLocked = now < discreteGestureLockUntilRef.current;
 
-        if (openPalm && !isPausedRef.current) {
-          setIsPaused(true);
-          isPausedRef.current = true;
-          setStatusText("Paused (open palm detected)");
-          await triggerAction("PAUSED", "Paused", undefined, false);
+        if (
+          openPalm &&
+          !isPausedRef.current &&
+          !gesturesLocked &&
+          !isPointing &&
+          !pinchPose &&
+          wristHistoryRef.current.length >= 2
+        ) {
+          const first = wristHistoryRef.current[0];
+          const last =
+            wristHistoryRef.current[wristHistoryRef.current.length - 1];
+          const handTravel = Math.hypot(last.x - first.x, last.y - first.y);
+
+          if (handTravel < OPEN_PALM_MAX_HAND_TRAVEL) {
+            if (openPalmHoldStartRef.current === null) {
+              openPalmHoldStartRef.current = now;
+            }
+            if (
+              !openPalmZoomConsumedRef.current &&
+              now - openPalmHoldStartRef.current >= OPEN_PALM_ZOOM_HOLD_MS
+            ) {
+              const triggered = await triggerAction(
+                "PINCH_OUT",
+                "Open palm: zoom out",
+              );
+              if (triggered) {
+                openPalmZoomConsumedRef.current = true;
+                pinchAnchorDistanceRef.current = null;
+                wristHistoryRef.current = [];
+              }
+            }
+          } else {
+            openPalmHoldStartRef.current = null;
+          }
+        } else if (!openPalm) {
+          openPalmHoldStartRef.current = null;
+          openPalmZoomConsumedRef.current = false;
         }
 
         if (isPointing && !isPausedRef.current) {
@@ -335,44 +404,115 @@ const GesturePanel: React.FC = () => {
               false,
             );
           }
+          if (pointUpHoldStartRef.current === null) {
+            pointUpHoldStartRef.current = now;
+          }
+          if (
+            !gesturesLocked &&
+            now - pointUpHoldStartRef.current >= POINT_SCROLL_HOLD_MS
+          ) {
+            await triggerAction("SCROLL_UP", "Point up: scroll up");
+          }
         } else {
+          pointUpHoldStartRef.current = null;
           await triggerAction("POINT_IDLE", "Pointer idle", undefined, false);
         }
 
-        if (!isPausedRef.current && wristHistoryRef.current.length >= 4) {
+        const isPointingDown = isPointDownGesture(landmarks);
+        if (isPointingDown && !isPausedRef.current) {
+          if (pointDownHoldStartRef.current === null) {
+            pointDownHoldStartRef.current = now;
+          }
+          if (
+            !gesturesLocked &&
+            now - pointDownHoldStartRef.current >= POINT_SCROLL_HOLD_MS
+          ) {
+            await triggerAction("SCROLL_DOWN", "Point down: scroll down");
+          }
+        } else {
+          pointDownHoldStartRef.current = null;
+        }
+
+        if (
+          !isPausedRef.current &&
+          !gesturesLocked &&
+          !isPointing &&
+          !openPalm &&
+          !pinchPose &&
+          wristHistoryRef.current.length >= 4
+        ) {
           const first = wristHistoryRef.current[0];
           const last =
             wristHistoryRef.current[wristHistoryRef.current.length - 1];
-          const dx = last.x - first.x;
+          // Mirror X axis to match how pointer movement is mapped.
+          const dx = first.x - last.x;
           const dy = last.y - first.y;
+          const absDx = Math.abs(dx);
+          const absDy = Math.abs(dy);
 
-          if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
+          if (
+            absDx > absDy * SWIPE_DOMINANCE_RATIO &&
+            absDx > SWIPE_X_THRESHOLD
+          ) {
             if (dx > 0) {
-              await triggerAction("SWIPE_RIGHT", "Swipe right: forward");
+              const triggered = await triggerAction(
+                "SWIPE_RIGHT",
+                "Swipe right: forward",
+              );
+              if (triggered) {
+                wristHistoryRef.current = [];
+                pinchAnchorDistanceRef.current = null;
+              }
             } else {
-              await triggerAction("SWIPE_LEFT", "Swipe left: back");
-            }
-          }
-
-          if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > SWIPE_THRESHOLD) {
-            if (dy > 0) {
-              await triggerAction("SCROLL_DOWN", "Swipe down: scroll");
-            } else {
-              await triggerAction("SCROLL_UP", "Swipe up: scroll");
+              const triggered = await triggerAction(
+                "SWIPE_LEFT",
+                "Swipe left: back",
+              );
+              if (triggered) {
+                wristHistoryRef.current = [];
+                pinchAnchorDistanceRef.current = null;
+              }
             }
           }
         }
 
-        const pinchDistance = distance(landmarks[4], landmarks[8]);
-        if (previousPinchDistanceRef.current !== null && !isPausedRef.current) {
-          const delta = pinchDistance - previousPinchDistanceRef.current;
-          if (delta > PINCH_DELTA_THRESHOLD) {
-            await triggerAction("PINCH_IN", "Pinch out: zoom in");
-          } else if (delta < -PINCH_DELTA_THRESHOLD) {
-            await triggerAction("PINCH_OUT", "Pinch in: zoom out");
+        if (
+          !isPausedRef.current &&
+          !gesturesLocked &&
+          pinchPose &&
+          wristHistoryRef.current.length >= 2
+        ) {
+          const first = wristHistoryRef.current[0];
+          const last =
+            wristHistoryRef.current[wristHistoryRef.current.length - 1];
+          const handTravel = Math.hypot(last.x - first.x, last.y - first.y);
+
+          if (handTravel < PINCH_MAX_HAND_TRAVEL) {
+            if (pinchAnchorDistanceRef.current === null) {
+              pinchAnchorDistanceRef.current = pinchDistance;
+            }
+            const delta = pinchDistance - pinchAnchorDistanceRef.current;
+            if (delta > PINCH_DELTA_THRESHOLD) {
+              const triggered = await triggerAction(
+                "PINCH_IN",
+                "Pinch out: zoom in",
+              );
+              if (triggered) {
+                pinchAnchorDistanceRef.current = pinchDistance;
+              }
+            } else if (delta < -PINCH_DELTA_THRESHOLD) {
+              const triggered = await triggerAction(
+                "PINCH_OUT",
+                "Pinch in: zoom out",
+              );
+              if (triggered) {
+                pinchAnchorDistanceRef.current = pinchDistance;
+              }
+            }
           }
+        } else if (pinchDistance > PINCH_RELEASE_DISTANCE) {
+          pinchAnchorDistanceRef.current = null;
         }
-        previousPinchDistanceRef.current = pinchDistance;
 
         rafRef.current = requestAnimationFrame(() => {
           void detectLoop();

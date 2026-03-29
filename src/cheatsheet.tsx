@@ -8,8 +8,8 @@ type CheatCard = {
   preview:
     | "swipe-left"
     | "swipe-right"
-    | "swipe-up"
-    | "swipe-down"
+    | "point-up"
+    | "point-down"
     | "pinch-out"
     | "pinch-in"
     | "point-dwell"
@@ -34,18 +34,18 @@ const GESTURE_CARDS: CheatCard[] = [
     details: "Navigate forward in your browsing history.",
   },
   {
-    title: "Swipe Up",
-    visual: "Hand moves up quickly",
-    preview: "swipe-up",
+    title: "Point Up",
+    visual: "Index finger extended upward, hold steady",
+    preview: "point-up",
     effect: "Scroll Up",
-    details: "Smoothly scroll up the active page.",
+    details: "Hold your index finger pointing up for 3 seconds to scroll the page up.",
   },
   {
-    title: "Swipe Down",
-    visual: "Hand moves down quickly",
-    preview: "swipe-down",
+    title: "Point Down",
+    visual: "Index finger extended downward, hold steady",
+    preview: "point-down",
     effect: "Scroll Down",
-    details: "Smoothly scroll down the active page.",
+    details: "Hold your index finger pointing down for 3 seconds to scroll the page down.",
   },
   {
     title: "Pinch Out",
@@ -71,10 +71,10 @@ const GESTURE_CARDS: CheatCard[] = [
   },
   {
     title: "Open Palm",
-    visual: "All fingers open toward camera",
+    visual: "All fingers open, hold steady toward camera",
     preview: "open-palm",
-    effect: "Pause Detection",
-    details: "Temporarily pause gesture listening to avoid accidental actions.",
+    effect: "Zoom Out",
+    details: "Hold an open palm steady briefly to zoom out the page.",
   },
 ];
 
@@ -98,14 +98,20 @@ const GesturePreview: React.FC<{ kind: CheatCard["preview"] }> = ({ kind }) => {
     );
   }
 
+  if (kind === "point-up" || kind === "point-down") {
+    return (
+      <div className={`gesture-preview ${kind}`} aria-hidden="true">
+        <div className="point-hold-line" />
+        <div className="preview-pointer" />
+      </div>
+    );
+  }
+
   if (kind === "open-palm") {
     return (
       <div className="gesture-preview open-palm" aria-hidden="true">
         <div className="palm-shape" />
-        <div className="pause-bars">
-          <span />
-          <span />
-        </div>
+        <div className="zoom-label" />
       </div>
     );
   }

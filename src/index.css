@@ -555,8 +555,100 @@ body {
   }
 }
 
+/* Point Up / Point Down hold previews */
+.point-up .preview-pointer,
+.point-down .preview-pointer {
+  left: 50%;
+}
+
+.point-up .preview-pointer {
+  top: 28%;
+  transform: translate(-50%, -50%);
+  animation: hold-pulse 1.4s ease-in-out infinite;
+}
+
+.point-down .preview-pointer {
+  top: 72%;
+  transform: translate(-50%, -50%);
+  animation: hold-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes hold-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 6px rgba(34, 211, 238, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 16px rgba(34, 211, 238, 0);
+  }
+}
+
+.point-hold-line {
+  position: absolute;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 1px;
+}
+
+.point-up .point-hold-line {
+  top: 4px;
+  bottom: 56%;
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.7), rgba(148, 163, 184, 0.1));
+}
+
+.point-up .point-hold-line::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 6px solid rgba(148, 163, 184, 0.7);
+}
+
+.point-down .point-hold-line {
+  top: 56%;
+  bottom: 4px;
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.1), rgba(148, 163, 184, 0.7));
+}
+
+.point-down .point-hold-line::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid rgba(148, 163, 184, 0.7);
+}
+
+/* Open Palm zoom-out preview */
+.zoom-label {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 2px solid rgba(251, 146, 60, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.zoom-label::after {
+  content: "\2212";
+  font-size: 20px;
+  font-weight: 700;
+  color: rgba(251, 146, 60, 0.95);
+  line-height: 1;
+}
+
 .open-palm .palm-shape,
-.open-palm .pause-bars span {
+.open-palm .zoom-label {
   animation: palm-pause 900ms ease-in-out infinite alternate;
 }
 
