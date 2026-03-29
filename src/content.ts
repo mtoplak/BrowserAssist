@@ -12,6 +12,10 @@ const CALIBRATION_HINT_ID = "browserassist-calibration-hint";
 const DWELL_CLICK_MS = 900;
 const CLICK_COOLDOWN_MS = 900;
 const ACTION_COOLDOWN_MS = 350;
+const EYE_SCROLL_EDGE = 0.15;
+const EYE_SCROLL_START_MS = 250;
+const EYE_SCROLL_INTERVAL_MS = 180;
+const EYE_SCROLL_STEP = 110;
 
 const CALIBRATION_POINTS: Array<{ x: number; y: number }> = [
     { x: 0.1, y: 0.1 },
@@ -32,6 +36,9 @@ let lastClickedAt = 0;
 let lastDiscreteAction = 0;
 let currentTarget: Element | null = null;
 let calibrationIndex = 0;
+let edgeDirection: "up" | "down" | null = null;
+let edgeStartAt = 0;
+let eyeScrollTimer: number | null = null;
 
 const clamp = (value: number, min: number, max: number): number =>
     Math.max(min, Math.min(max, value));
@@ -203,8 +210,8 @@ const moveHoverRing = (target: Element): void => {
     const ring = ensureHoverRing();
     const rect = target.getBoundingClientRect();
 
-    ring.style.left = `${rect.left + window.scrollX - 3}px`;
-    ring.style.top = `${rect.top + window.scrollY - 3}px`;
+    ring.style.left = `${rect.left - 3}px`;
+    ring.style.top = `${rect.top - 3}px`;
     ring.style.width = `${Math.max(16, rect.width + 6)}px`;
     ring.style.height = `${Math.max(16, rect.height + 6)}px`;
     ring.style.opacity = "1";
@@ -221,6 +228,61 @@ const hidePointUi = (): void => {
     }
     dwellStart = 0;
     currentTarget = null;
+};
+
+const stopEyeScroll = (): void => {
+    if (eyeScrollTimer !== null) {
+        window.clearInterval(eyeScrollTimer);
+        eyeScrollTimer = null;
+    }
+};
+
+const resetEyeScrollState = (): void => {
+    stopEyeScroll();
+    edgeDirection = null;
+    edgeStartAt = 0;
+};
+
+const startEyeScroll = (direction: "up" | "down"): void => {
+    if (eyeScrollTimer !== null) {
+        return;
+    }
+    eyeScrollTimer = window.setInterval(() => {
+        const delta = direction === "up" ? -EYE_SCROLL_STEP : EYE_SCROLL_STEP;
+        window.scrollBy({ top: delta, behavior: "smooth" });
+    }, EYE_SCROLL_INTERVAL_MS);
+    showIndicator(direction === "up" ? "Eye scroll up" : "Eye scroll down");
+};
+
+const handleEyeEdgeScroll = (x: number, y: number): void => {
+    const now = Date.now();
+    let desired: "up" | "down" | null = null;
+    if (y <= EYE_SCROLL_EDGE) {
+        desired = "up";
+    } else if (y >= 1 - EYE_SCROLL_EDGE) {
+        desired = "down";
+    }
+
+    if (!desired) {
+        resetEyeScrollState();
+        return;
+    }
+
+    if (edgeDirection !== desired) {
+        stopEyeScroll();
+        edgeDirection = desired;
+        edgeStartAt = now;
+        return;
+    }
+
+    if (edgeStartAt === 0) {
+        edgeStartAt = now;
+        return;
+    }
+
+    if (now - edgeStartAt >= EYE_SCROLL_START_MS) {
+        startEyeScroll(desired);
+    }
 };
 
 const removeCalibrationOverlay = (): void => {
@@ -422,14 +484,22 @@ const handleEyeMessage = (message: ExtensionRuntimeMessage): void => {
         case "CALIBRATION_START":
             calibrationIndex = 0;
             ensureCalibrationOverlay();
+            resetEyeScrollState();
             showIndicator("Eye calibration started");
             break;
         case "CALIBRATION_STOP":
             removeCalibrationOverlay();
+            resetEyeScrollState();
             showIndicator("Eye calibration stopped");
             break;
         case "GAZE_MOVE":
             handlePointMove({ x: message.payload?.x, y: message.payload?.y });
+            if (
+                typeof message.payload?.x === "number" &&
+                typeof message.payload?.y === "number"
+            ) {
+                handleEyeEdgeScroll(message.payload.x, message.payload.y);
+            }
             break;
         default:
             break;
