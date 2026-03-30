@@ -8,8 +8,6 @@ import { handleOpenCheatsheet } from "../../tools/functions";
 
 const ACTION_COOLDOWN_MS = 700;
 const POINT_FRAME_INTERVAL_MS = 75;
-const SWIPE_X_THRESHOLD = 0.06;
-const SWIPE_DOMINANCE_RATIO = 1.3;
 const PINCH_DELTA_THRESHOLD = 0.014;
 const PINCH_START_DISTANCE = 0.14;
 const PINCH_RELEASE_DISTANCE = 0.18;
@@ -18,6 +16,7 @@ const DISCRETE_GESTURE_LOCK_MS = 800;
 const OPEN_PALM_ZOOM_HOLD_MS = 350;
 const OPEN_PALM_MAX_HAND_TRAVEL = 0.025;
 const POINT_SCROLL_HOLD_MS = 3000;
+const POINT_NAV_HOLD_MS = 2000;
 
 const getStartupErrorMessage = (error: unknown): string => {
   if (error instanceof DOMException) {
@@ -87,6 +86,62 @@ const isOpenPalm = (
   return indexUp && middleUp && ringUp && pinkyUp && thumbOpen;
 };
 
+const isPointLeftGesture = (
+  landmarks: Array<{ x: number; y: number; z: number }>,
+): boolean => {
+  const tip = landmarks[8];
+  const pip = landmarks[6];
+  const mcp = landmarks[5];
+
+  // In raw camera coords, user's left = higher x
+  if (!(tip.x > pip.x && pip.x > mcp.x)) return false;
+
+  const hDist = tip.x - mcp.x;
+  const vDist = Math.abs(tip.y - mcp.y);
+  if (hDist < 0.04 || vDist > hDist) return false;
+
+  const wrist = landmarks[0];
+  const indexDist = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
+  const middleDist = Math.hypot(
+    landmarks[12].x - wrist.x,
+    landmarks[12].y - wrist.y,
+  );
+  const ringDist = Math.hypot(
+    landmarks[16].x - wrist.x,
+    landmarks[16].y - wrist.y,
+  );
+
+  return middleDist < indexDist * 0.75 && ringDist < indexDist * 0.75;
+};
+
+const isPointRightGesture = (
+  landmarks: Array<{ x: number; y: number; z: number }>,
+): boolean => {
+  const tip = landmarks[8];
+  const pip = landmarks[6];
+  const mcp = landmarks[5];
+
+  // In raw camera coords, user's right = lower x
+  if (!(tip.x < pip.x && pip.x < mcp.x)) return false;
+
+  const hDist = mcp.x - tip.x;
+  const vDist = Math.abs(tip.y - mcp.y);
+  if (hDist < 0.04 || vDist > hDist) return false;
+
+  const wrist = landmarks[0];
+  const indexDist = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
+  const middleDist = Math.hypot(
+    landmarks[12].x - wrist.x,
+    landmarks[12].y - wrist.y,
+  );
+  const ringDist = Math.hypot(
+    landmarks[16].x - wrist.x,
+    landmarks[16].y - wrist.y,
+  );
+
+  return middleDist < indexDist * 0.75 && ringDist < indexDist * 0.75;
+};
+
 const isPinchPose = (pinchDistance: number): boolean =>
   pinchDistance < PINCH_START_DISTANCE;
 
@@ -123,6 +178,8 @@ const GesturePanel: React.FC = () => {
   const openPalmZoomConsumedRef = useRef<boolean>(false);
   const pointUpHoldStartRef = useRef<number | null>(null);
   const pointDownHoldStartRef = useRef<number | null>(null);
+  const pointLeftHoldStartRef = useRef<number | null>(null);
+  const pointRightHoldStartRef = useRef<number | null>(null);
 
   useEffect(() => {
     isPausedRef.current = isPaused;
@@ -203,6 +260,8 @@ const GesturePanel: React.FC = () => {
     openPalmZoomConsumedRef.current = false;
     pointUpHoldStartRef.current = null;
     pointDownHoldStartRef.current = null;
+    pointLeftHoldStartRef.current = null;
+    pointRightHoldStartRef.current = null;
     wristHistoryRef.current = [];
     await triggerAction("POINT_IDLE", "Pointer idle", undefined, false);
   }, [triggerAction]);
@@ -434,47 +493,36 @@ const GesturePanel: React.FC = () => {
           pointDownHoldStartRef.current = null;
         }
 
-        if (
-          !isPausedRef.current &&
-          !gesturesLocked &&
-          !isPointing &&
-          !openPalm &&
-          !pinchPose &&
-          wristHistoryRef.current.length >= 4
-        ) {
-          const first = wristHistoryRef.current[0];
-          const last =
-            wristHistoryRef.current[wristHistoryRef.current.length - 1];
-          // Mirror X axis to match how pointer movement is mapped.
-          const dx = first.x - last.x;
-          const dy = last.y - first.y;
-          const absDx = Math.abs(dx);
-          const absDy = Math.abs(dy);
-
-          if (
-            absDx > absDy * SWIPE_DOMINANCE_RATIO &&
-            absDx > SWIPE_X_THRESHOLD
-          ) {
-            if (dx > 0) {
-              const triggered = await triggerAction(
-                "SWIPE_RIGHT",
-                "Swipe right: forward",
-              );
-              if (triggered) {
-                wristHistoryRef.current = [];
-                pinchAnchorDistanceRef.current = null;
-              }
-            } else {
-              const triggered = await triggerAction(
-                "SWIPE_LEFT",
-                "Swipe left: back",
-              );
-              if (triggered) {
-                wristHistoryRef.current = [];
-                pinchAnchorDistanceRef.current = null;
-              }
-            }
+        const pointingLeft = isPointLeftGesture(landmarks);
+        if (pointingLeft && !isPausedRef.current) {
+          if (pointLeftHoldStartRef.current === null) {
+            pointLeftHoldStartRef.current = now;
           }
+          if (
+            !gesturesLocked &&
+            now - pointLeftHoldStartRef.current >= POINT_NAV_HOLD_MS
+          ) {
+            await triggerAction("SWIPE_LEFT", "Point left: back");
+            pointLeftHoldStartRef.current = null;
+          }
+        } else {
+          pointLeftHoldStartRef.current = null;
+        }
+
+        const pointingRight = isPointRightGesture(landmarks);
+        if (pointingRight && !isPausedRef.current) {
+          if (pointRightHoldStartRef.current === null) {
+            pointRightHoldStartRef.current = now;
+          }
+          if (
+            !gesturesLocked &&
+            now - pointRightHoldStartRef.current >= POINT_NAV_HOLD_MS
+          ) {
+            await triggerAction("SWIPE_RIGHT", "Point right: forward");
+            pointRightHoldStartRef.current = null;
+          }
+        } else {
+          pointRightHoldStartRef.current = null;
         }
 
         if (

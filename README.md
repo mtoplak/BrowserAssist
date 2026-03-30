@@ -8,16 +8,16 @@ An accessibility-focused Chrome extension that lets users navigate the web using
 
 Real-time hand tracking through your webcam with support for:
 
-| Gesture | Action |
-|---------|--------|
-| Point up (hold) | Scroll up |
-| Point down (hold) | Scroll down |
-| Point + dwell | Click element under pointer |
-| Swipe left | Browser back |
-| Swipe right | Browser forward |
-| Pinch in | Zoom out |
-| Pinch out | Zoom in |
-| Open palm (hold) | Zoom out |
+| Gesture            | Action                      |
+| ------------------ | --------------------------- |
+| Point up (hold)    | Scroll up                   |
+| Point down (hold)  | Scroll down                 |
+| Point left (hold)  | Browser back                |
+| Point right (hold) | Browser forward             |
+| Point + dwell      | Click element under pointer |
+| Pinch in           | Zoom out                    |
+| Pinch out          | Zoom in                     |
+| Open palm (hold)   | Zoom out                    |
 
 A built-in gesture cheatsheet is accessible from the extension panel.
 
@@ -105,7 +105,3 @@ Contributions are welcome. To get started:
 2. Create a branch (`git checkout -b feature/your-feature`)
 3. Commit your changes
 4. Push and open a pull request
-
-## License
-
-MIT

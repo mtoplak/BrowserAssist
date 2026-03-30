@@ -6,8 +6,8 @@ type CheatCard = {
   title: string;
   visual: string;
   preview:
-    | "swipe-left"
-    | "swipe-right"
+    | "point-left"
+    | "point-right"
     | "point-up"
     | "point-down"
     | "pinch-out"
@@ -20,18 +20,18 @@ type CheatCard = {
 
 const GESTURE_CARDS: CheatCard[] = [
   {
-    title: "Swipe Left",
-    visual: "Hand moves left quickly",
-    preview: "swipe-left",
+    title: "Point Left",
+    visual: "Index finger pointing left, hold steady",
+    preview: "point-left",
     effect: "Browser Back",
-    details: "Navigate to the previous page in your current tab.",
+    details: "Point your index finger to the left and hold for 2 seconds to go back.",
   },
   {
-    title: "Swipe Right",
-    visual: "Hand moves right quickly",
-    preview: "swipe-right",
+    title: "Point Right",
+    visual: "Index finger pointing right, hold steady",
+    preview: "point-right",
     effect: "Browser Forward",
-    details: "Navigate forward in your browsing history.",
+    details: "Point your index finger to the right and hold for 2 seconds to go forward.",
   },
   {
     title: "Point Up",
@@ -90,12 +90,18 @@ type HandPose =
   | "palm"
   | "emoji-up"
   | "emoji-down"
-  | "emoji-pinch";
+  | "emoji-pinch"
+  | "emoji-left"
+  | "emoji-right"
+  | "emoji-dwell";
 
 const HandIllustration: React.FC<{ pose: HandPose }> = ({ pose }) => {
   if (pose === "emoji-up") return <span className="preview-emoji">👆</span>;
   if (pose === "emoji-down") return <span className="preview-emoji">👇</span>;
   if (pose === "emoji-pinch") return <span className="preview-emoji">👌</span>;
+  if (pose === "emoji-left") return <span className="preview-emoji">👈</span>;
+  if (pose === "emoji-right") return <span className="preview-emoji">👉</span>;
+  if (pose === "emoji-dwell") return <span className="preview-emoji">☝️</span>;
 
   const color = "rgba(255, 255, 255, 0.5)";
   const common: React.SVGProps<SVGSVGElement> = {
@@ -193,13 +199,13 @@ const HandIllustration: React.FC<{ pose: HandPose }> = ({ pose }) => {
 };
 
 const POSE_MAP: Record<CheatCard["preview"], HandPose> = {
-  "swipe-left": "flat",
-  "swipe-right": "flat",
+  "point-left": "emoji-left",
+  "point-right": "emoji-right",
   "point-up": "emoji-up",
   "point-down": "emoji-down",
   "pinch-out": "emoji-pinch",
   "pinch-in": "emoji-pinch",
-  "point-dwell": "point",
+  "point-dwell": "emoji-dwell",
   "open-palm": "palm",
 };
 
@@ -226,7 +232,12 @@ const GesturePreview: React.FC<{ kind: CheatCard["preview"] }> = ({ kind }) => {
       );
     }
 
-    if (kind === "point-up" || kind === "point-down") {
+    if (
+      kind === "point-up" ||
+      kind === "point-down" ||
+      kind === "point-left" ||
+      kind === "point-right"
+    ) {
       return (
         <>
           <div className="point-hold-line" />

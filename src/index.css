@@ -601,11 +601,28 @@ body {
   animation: dwell-pulse 1.4s ease-out infinite;
 }
 
-/* Point up / down */
+/* Point up / down / left / right */
 
 .point-up .preview-pointer,
 .point-down .preview-pointer {
   left: 50%;
+}
+
+.point-left .preview-pointer,
+.point-right .preview-pointer {
+  top: 50%;
+}
+
+.point-left .preview-pointer {
+  left: 28%;
+  transform: translate(-50%, -50%);
+  animation: hold-pulse 1.4s ease-in-out infinite;
+}
+
+.point-right .preview-pointer {
+  left: 72%;
+  transform: translate(-50%, -50%);
+  animation: hold-pulse 1.4s ease-in-out infinite;
 }
 
 @keyframes hold-pulse {
@@ -670,6 +687,49 @@ body {
   border-left: 4px solid transparent;
   border-right: 4px solid transparent;
   border-top: 5px solid rgba(255, 255, 255, 0.15);
+}
+
+.point-left .point-hold-line,
+.point-right .point-hold-line {
+  top: 50%;
+  height: 1px;
+  width: auto;
+  left: auto;
+  transform: translateY(-50%);
+}
+
+.point-left .point-hold-line {
+  left: 4px;
+  right: 56%;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.15), transparent);
+}
+
+.point-left .point-hold-line::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-right: 5px solid rgba(255, 255, 255, 0.15);
+}
+
+.point-right .point-hold-line {
+  left: 56%;
+  right: 4px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15));
+}
+
+.point-right .point-hold-line::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid rgba(255, 255, 255, 0.15);
 }
 
 /* Open palm */
