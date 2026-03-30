@@ -28,6 +28,7 @@ Gaze-based control with a 9-point calibration system:
 - Iris detection via MediaPipe FaceLandmarker
 - Dwell clicking (hold gaze on an element to click)
 - Edge-based scrolling (look at top/bottom of screen to scroll)
+- Edge-based backwards navigation
 - Smoothed gaze point via exponential moving average
 
 ### Visual Overlays
