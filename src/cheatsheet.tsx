@@ -38,14 +38,16 @@ const GESTURE_CARDS: CheatCard[] = [
     visual: "Index finger extended upward, hold steady",
     preview: "point-up",
     effect: "Scroll Up",
-    details: "Hold your index finger pointing up for 3 seconds to scroll the page up.",
+    details:
+      "Hold your index finger pointing up for 3 seconds to scroll the page up.",
   },
   {
     title: "Point Down",
     visual: "Index finger extended downward, hold steady",
     preview: "point-down",
     effect: "Scroll Down",
-    details: "Hold your index finger pointing down for 3 seconds to scroll the page down.",
+    details:
+      "Hold your index finger pointing down for 3 seconds to scroll the page down.",
   },
   {
     title: "Pinch Out",
@@ -78,91 +80,214 @@ const GESTURE_CARDS: CheatCard[] = [
   },
 ];
 
+/* ── Hand pose SVG illustrations ── */
+
+type HandPose =
+  | "point"
+  | "point-down"
+  | "flat"
+  | "pinch"
+  | "palm"
+  | "emoji-up"
+  | "emoji-down"
+  | "emoji-pinch";
+
+const HandIllustration: React.FC<{ pose: HandPose }> = ({ pose }) => {
+  if (pose === "emoji-up") return <span className="preview-emoji">👆</span>;
+  if (pose === "emoji-down") return <span className="preview-emoji">👇</span>;
+  if (pose === "emoji-pinch") return <span className="preview-emoji">👌</span>;
+
+  const color = "rgba(255, 255, 255, 0.5)";
+  const common: React.SVGProps<SVGSVGElement> = {
+    fill: "none",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+
+  if (pose === "point") {
+    return (
+      <svg
+        width="24"
+        height="40"
+        viewBox="0 0 24 40"
+        stroke={color}
+        {...common}
+      >
+        <line x1="12" y1="17" x2="12" y2="4" strokeWidth="3" />
+        <rect x="4" y="17" width="16" height="14" rx="4" strokeWidth="1.5" />
+        <line x1="4" y1="26" x2="1" y2="20" strokeWidth="2.5" />
+      </svg>
+    );
+  }
+
+  if (pose === "point-down") {
+    return (
+      <svg
+        width="24"
+        height="40"
+        viewBox="0 0 24 40"
+        stroke={color}
+        {...common}
+      >
+        <line x1="12" y1="23" x2="12" y2="36" strokeWidth="3" />
+        <rect x="4" y="9" width="16" height="14" rx="4" strokeWidth="1.5" />
+        <line x1="4" y1="14" x2="1" y2="20" strokeWidth="2.5" />
+      </svg>
+    );
+  }
+
+  if (pose === "flat") {
+    return (
+      <svg
+        width="28"
+        height="40"
+        viewBox="0 0 28 40"
+        stroke={color}
+        {...common}
+      >
+        <line x1="8" y1="17" x2="8" y2="7" strokeWidth="3" />
+        <line x1="12" y1="17" x2="12" y2="4" strokeWidth="3" />
+        <line x1="16" y1="17" x2="16" y2="4" strokeWidth="3" />
+        <line x1="20" y1="17" x2="20" y2="7" strokeWidth="3" />
+        <rect x="3" y="17" width="21" height="14" rx="4" strokeWidth="1.5" />
+        <line x1="3" y1="26" x2="0" y2="19" strokeWidth="2.5" />
+      </svg>
+    );
+  }
+
+  if (pose === "pinch") {
+    return (
+      <svg
+        width="26"
+        height="40"
+        viewBox="0 0 26 40"
+        stroke={color}
+        {...common}
+      >
+        <line x1="9" y1="18" x2="11" y2="5" strokeWidth="3" />
+        <line x1="17" y1="22" x2="13" y2="7" strokeWidth="2.5" />
+        <circle
+          cx="12"
+          cy="5"
+          r="2.5"
+          fill="rgba(110, 159, 255, 0.2)"
+          strokeWidth="1"
+        />
+        <rect x="3" y="20" width="16" height="13" rx="4" strokeWidth="1.5" />
+        <path d="M16 20c3 0 5 2 5 5" strokeWidth="1.5" />
+      </svg>
+    );
+  }
+
+  // palm
+  return (
+    <svg width="30" height="40" viewBox="0 0 30 40" stroke={color} {...common}>
+      <line x1="8" y1="17" x2="4" y2="5" strokeWidth="3" />
+      <line x1="12" y1="17" x2="10" y2="3" strokeWidth="3" />
+      <line x1="17" y1="17" x2="19" y2="3" strokeWidth="3" />
+      <line x1="21" y1="17" x2="25" y2="5" strokeWidth="3" />
+      <rect x="4" y="17" width="21" height="14" rx="4" strokeWidth="1.5" />
+      <line x1="4" y1="26" x2="0" y2="16" strokeWidth="2.5" />
+    </svg>
+  );
+};
+
+const POSE_MAP: Record<CheatCard["preview"], HandPose> = {
+  "swipe-left": "flat",
+  "swipe-right": "flat",
+  "point-up": "emoji-up",
+  "point-down": "emoji-down",
+  "pinch-out": "emoji-pinch",
+  "pinch-in": "emoji-pinch",
+  "point-dwell": "point",
+  "open-palm": "palm",
+};
+
+/* ── Gesture preview with hand pose + motion animation ── */
+
 const GesturePreview: React.FC<{ kind: CheatCard["preview"] }> = ({ kind }) => {
-  if (kind === "pinch-out" || kind === "pinch-in") {
-    return (
-      <div className={`gesture-preview ${kind}`} aria-hidden="true">
-        <div className="pinch-center" />
-        <div className="pinch-dot pinch-dot-left" />
-        <div className="pinch-dot pinch-dot-right" />
-      </div>
-    );
-  }
+  const renderMotion = () => {
+    if (kind === "pinch-out" || kind === "pinch-in") {
+      return (
+        <>
+          <div className="pinch-center" />
+          <div className="pinch-dot pinch-dot-left" />
+          <div className="pinch-dot pinch-dot-right" />
+        </>
+      );
+    }
 
-  if (kind === "point-dwell") {
+    if (kind === "point-dwell") {
+      return (
+        <>
+          <div className="preview-target" />
+          <div className="preview-pointer" />
+        </>
+      );
+    }
+
+    if (kind === "point-up" || kind === "point-down") {
+      return (
+        <>
+          <div className="point-hold-line" />
+          <div className="preview-pointer" />
+        </>
+      );
+    }
+
+    if (kind === "open-palm") {
+      return <div className="zoom-label" />;
+    }
+
     return (
-      <div className="gesture-preview point-dwell" aria-hidden="true">
-        <div className="preview-target" />
+      <>
+        <div className="preview-path" />
         <div className="preview-pointer" />
-      </div>
+      </>
     );
-  }
-
-  if (kind === "point-up" || kind === "point-down") {
-    return (
-      <div className={`gesture-preview ${kind}`} aria-hidden="true">
-        <div className="point-hold-line" />
-        <div className="preview-pointer" />
-      </div>
-    );
-  }
-
-  if (kind === "open-palm") {
-    return (
-      <div className="gesture-preview open-palm" aria-hidden="true">
-        <div className="palm-shape" />
-        <div className="zoom-label" />
-      </div>
-    );
-  }
+  };
 
   return (
     <div className={`gesture-preview ${kind}`} aria-hidden="true">
-      <div className="preview-path" />
-      <div className="preview-pointer" />
+      <div className="preview-pose">
+        <HandIllustration pose={POSE_MAP[kind]} />
+      </div>
+      <div className="preview-motion">{renderMotion()}</div>
     </div>
   );
 };
 
 const CheatsheetApp: React.FC = () => {
   return (
-    <main className="nebula-shell cheatsheet-shell">
-      <div className="orb orb-one" aria-hidden="true" />
-      <div className="orb orb-two" aria-hidden="true" />
-
-      <section className="glass-card w-full cheatsheet-card">
-        <p className="chip-label">Browser Assist</p>
-        <h1 className="hero-title mt-3">Gesture Cheatsheet</h1>
-        <p className="hero-copy mt-2">
-          Use this page as a quick visual guide while controlling the browser
-          with hand gestures.
+    <main className="cheatsheet-shell">
+      <div className="cheatsheet-inner">
+        <div className="page-title">Gesture Cheatsheet</div>
+        <p className="page-desc">
+          Quick reference for hand gestures. Keep your hand centered in camera
+          view.
         </p>
 
-        <div className="cheatsheet-grid mt-6">
+        <div className="cheatsheet-grid mt-5">
           {GESTURE_CARDS.map((card) => (
             <article className="gesture-card" key={card.title}>
-              <p className="metric-kicker">Gesture</p>
+              <div className="label">Gesture</div>
               <h2 className="gesture-title">{card.title}</h2>
               <GesturePreview kind={card.preview} />
-              <p className="gesture-visual">Visual: {card.visual}</p>
-              <p className="gesture-effect">Action: {card.effect}</p>
-              <p className="status-note">{card.details}</p>
+              <p className="gesture-visual">{card.visual}</p>
+              <p className="gesture-effect">{card.effect}</p>
+              <p className="note mt-1">{card.details}</p>
             </article>
           ))}
         </div>
 
-        <div className="metric-card mt-6">
-          <p className="metric-kicker">Tips</p>
-          <p className="status-note mt-1">
-            Keep your hand centered in camera view and move with deliberate,
-            short gestures.
-          </p>
-          <p className="status-note mt-1">
-            The engine has a cooldown between triggers to reduce repeated
-            actions.
+        <div className="metric-card mt-5">
+          <div className="label">Tips</div>
+          <p className="note mt-2">
+            Move with short, deliberate gestures. There is a cooldown between
+            triggers to prevent repeated actions.
           </p>
         </div>
-      </section>
+      </div>
     </main>
   );
 };

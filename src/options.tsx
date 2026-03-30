@@ -5,20 +5,16 @@ import CountShow from "./compontments/CountShow";
 
 const App: React.FC = () => {
   return (
-    <main className="nebula-shell options-shell">
-      <div className="orb orb-three" aria-hidden="true" />
-
-      <section className="glass-card max-w-2xl w-full">
-        <p className="chip-label">Options</p>
-        <h1 className="hero-title mt-3">Control Center</h1>
-        <p className="hero-copy mt-3">
-          Manage local state and tune the extension behavior from a dedicated
-          panel that feels like a real product.
+    <main className="options-shell">
+      <section className="card max-w-2xl w-full">
+        <div className="page-title">Control Center</div>
+        <p className="page-desc">
+          Manage local state and tune the extension behavior.
         </p>
 
-        <div className="mt-6 rounded-2xl border border-white/20 bg-white/5 p-4 md:p-5">
-          <p className="metric-kicker">Storage demo</p>
-          <p className="text-sm text-slate-200/90 mt-1">
+        <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+          <div className="label">Storage demo</div>
+          <p className="note mt-1">
             The counter below is stored in chrome local storage and updates
             reactively.
           </p>

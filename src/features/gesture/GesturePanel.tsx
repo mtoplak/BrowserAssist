@@ -4,6 +4,7 @@ import type {
   GestureAction,
   GestureRuntimeMessage,
 } from "../../tools/gestureTypes";
+import { handleOpenCheatsheet } from "../../tools/functions";
 
 const ACTION_COOLDOWN_MS = 700;
 const POINT_FRAME_INTERVAL_MS = 75;
@@ -563,11 +564,6 @@ const GesturePanel: React.FC = () => {
 
   return (
     <section role="tabpanel" aria-label="Gesture control" className="mt-4">
-      <p className="hero-copy mt-2">
-        Hands are tracked locally in this popup using MediaPipe. No webcam data
-        leaves your device.
-      </p>
-
       <div className="camera-shell mt-5">
         <video ref={videoRef} className="camera-feed" muted playsInline />
       </div>
@@ -605,12 +601,19 @@ const GesturePanel: React.FC = () => {
           </button>
         )}
         <button
-          className="counter-btn counter-btn-primary"
+          className="counter-btn counter-btn-primary w-full"
           onClick={() => void handlePauseToggle()}
         >
           {isPaused ? "Resume" : "Pause"}
         </button>
       </div>
+
+      <button
+        className="btn btn-ghost mt-4 w-full"
+        onClick={handleOpenCheatsheet}
+      >
+        Gesture cheatsheet
+      </button>
     </section>
   );
 };

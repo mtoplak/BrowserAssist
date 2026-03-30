@@ -334,7 +334,7 @@ const EyeTrackingPanel: React.FC = () => {
       return;
     }
 
-    setEyeStatusText("Starting eye tracking…");
+    setEyeStatusText("Starting eye tracking...");
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -540,67 +540,58 @@ const EyeTrackingPanel: React.FC = () => {
 
   return (
     <section role="tabpanel" aria-label="Eye tracking" className="mt-4">
-      <div className="eyetrack-shell">
-        <p className="hero-copy mt-2">
-          This mode uses MediaPipe face landmarks to estimate gaze, with
-          calibration and dwell pointer control.
-        </p>
-
-        <div className="camera-shell mt-5">
-          <video ref={eyeVideoRef} className="camera-feed" muted playsInline />
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <div className="metric-card">
-            <p className="metric-kicker">Engine</p>
-            <p className="metric-value">
-              {isEyeActive ? "Running" : "Stopped"}
-            </p>
-          </div>
-          <div className="metric-card">
-            <p className="metric-kicker">Status</p>
-            <p className="metric-value">{eyeStatusText}</p>
-          </div>
-          <div className="metric-card col-span-2">
-            <p className="metric-kicker">Gaze sample</p>
-            <p className="metric-value">
-              {lastGaze
-                ? `${Math.round(lastGaze.x * 100)}% x ${Math.round(lastGaze.y * 100)}%`
-                : "None"}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-6 flex gap-2">
-          {!isEyeActive ? (
-            <button
-              className="primary-cta w-full"
-              onClick={() => void startEyeTracking()}
-            >
-              Start Eye Tracking
-            </button>
-          ) : (
-            <button className="primary-cta w-full" onClick={stopEyeTracking}>
-              Stop Eye Tracking
-            </button>
-          )}
-          <button
-            className="counter-btn counter-btn-primary"
-            onClick={() => {
-              if (!isEyeActive) return;
-              if (!isCalibrating) startCalibration();
-              else setEyeStatusText("Click the highlighted dot on the page");
-            }}
-          >
-            {!isCalibrating ? "Start Calibration" : "Waiting on Dot"}
-          </button>
-        </div>
-
-        <p className="status-note mt-4">
-          Calibration uses 9 points on the page. Look at the highlighted dot and
-          click it, then hold your gaze briefly to capture multiple samples.
-        </p>
+      <div className="camera-shell mt-5">
+        <video ref={eyeVideoRef} className="camera-feed" muted playsInline />
       </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="metric-card">
+          <p className="metric-kicker">Engine</p>
+          <p className="metric-value">{isEyeActive ? "Running" : "Stopped"}</p>
+        </div>
+        <div className="metric-card">
+          <p className="metric-kicker">Status</p>
+          <p className="metric-value">{eyeStatusText}</p>
+        </div>
+        <div className="metric-card col-span-2">
+          <p className="metric-kicker">Gaze sample</p>
+          <p className="metric-value">
+            {lastGaze
+              ? `${Math.round(lastGaze.x * 100)}% x ${Math.round(lastGaze.y * 100)}%`
+              : "None"}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6 flex gap-2 mb-4">
+        {!isEyeActive ? (
+          <button
+            className="primary-cta w-full"
+            onClick={() => void startEyeTracking()}
+          >
+            Start Eye Tracking
+          </button>
+        ) : (
+          <button className="primary-cta w-full" onClick={stopEyeTracking}>
+            Stop Eye Tracking
+          </button>
+        )}
+        <button
+          className="counter-btn counter-btn-primary w-full"
+          onClick={() => {
+            if (!isEyeActive) return;
+            if (!isCalibrating) startCalibration();
+            else setEyeStatusText("Click the highlighted dot on the page");
+          }}
+        >
+          {!isCalibrating ? "Start Calibration" : "Waiting on Dot"}
+        </button>
+      </div>
+
+      <p className="status-note mt-4">
+        Calibration uses 9 points on the page. Look at the highlighted dot and
+        click it, then hold your gaze briefly to capture multiple samples.
+      </p>
     </section>
   );
 };
