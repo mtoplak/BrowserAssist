@@ -16,6 +16,9 @@ const EYE_SCROLL_EDGE = 0.15;
 const EYE_SCROLL_START_MS = 250;
 const EYE_SCROLL_INTERVAL_MS = 180;
 const EYE_SCROLL_STEP = 110;
+const EYE_BACK_EDGE = 0.08;
+const EYE_BACK_DWELL_MS = 650;
+const EYE_BACK_COOLDOWN_MS = 1200;
 
 const CALIBRATION_POINTS: Array<{ x: number; y: number }> = [
     { x: 0.1, y: 0.1 },
@@ -39,6 +42,8 @@ let calibrationIndex = 0;
 let edgeDirection: "up" | "down" | null = null;
 let edgeStartAt = 0;
 let eyeScrollTimer: number | null = null;
+let eyeBackStartAt = 0;
+let lastEyeBackAt = 0;
 
 const clamp = (value: number, min: number, max: number): number =>
     Math.max(min, Math.min(max, value));
@@ -243,6 +248,10 @@ const resetEyeScrollState = (): void => {
     edgeStartAt = 0;
 };
 
+const resetEyeBackState = (): void => {
+    eyeBackStartAt = 0;
+};
+
 const startEyeScroll = (direction: "up" | "down"): void => {
     if (eyeScrollTimer !== null) {
         return;
@@ -283,6 +292,34 @@ const handleEyeEdgeScroll = (x: number, y: number): void => {
     if (now - edgeStartAt >= EYE_SCROLL_START_MS) {
         startEyeScroll(desired);
     }
+};
+
+const handleEyeEdgeBack = (x: number): boolean => {
+    const now = Date.now();
+
+    if (x > EYE_BACK_EDGE) {
+        eyeBackStartAt = 0;
+        return false;
+    }
+
+    if (eyeBackStartAt === 0) {
+        eyeBackStartAt = now;
+        return true;
+    }
+
+    if (now - lastEyeBackAt < EYE_BACK_COOLDOWN_MS) {
+        return true;
+    }
+
+    if (now - eyeBackStartAt >= EYE_BACK_DWELL_MS) {
+        lastEyeBackAt = now;
+        eyeBackStartAt = 0;
+        window.history.back();
+        showIndicator("Eye back");
+        return true;
+    }
+
+    return true;
 };
 
 const removeCalibrationOverlay = (): void => {
@@ -485,11 +522,13 @@ const handleEyeMessage = (message: ExtensionRuntimeMessage): void => {
             calibrationIndex = 0;
             ensureCalibrationOverlay();
             resetEyeScrollState();
+            resetEyeBackState();
             showIndicator("Eye calibration started");
             break;
         case "CALIBRATION_STOP":
             removeCalibrationOverlay();
             resetEyeScrollState();
+            resetEyeBackState();
             showIndicator("Eye calibration stopped");
             break;
         case "GAZE_MOVE":
@@ -498,7 +537,15 @@ const handleEyeMessage = (message: ExtensionRuntimeMessage): void => {
                 typeof message.payload?.x === "number" &&
                 typeof message.payload?.y === "number"
             ) {
+                const backHandled = handleEyeEdgeBack(message.payload.x);
+                if (backHandled) {
+                    resetEyeScrollState();
+                    return;
+                }
                 handleEyeEdgeScroll(message.payload.x, message.payload.y);
+            } else {
+                resetEyeScrollState();
+                resetEyeBackState();
             }
             break;
         default:

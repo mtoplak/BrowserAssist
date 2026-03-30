@@ -3,7 +3,8 @@ import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import type { ExtensionRuntimeMessage } from "../../tools/gestureTypes";
 
 const EYE_POINT_INTERVAL_MS = 75;
-const EMA_ALPHA = 0.3;
+const EMA_ALPHA = 0.22;
+const GAZE_DEADZONE = 0.012;
 const CALIBRATION_SAMPLE_WINDOW_MS = 650;
 const CALIBRATION_SAMPLE_TARGET = 12;
 const CALIBRATION_SAMPLE_MIN = 6;
@@ -22,7 +23,16 @@ const CALIBRATION_POINTS: Array<{ x: number; y: number }> = [
 ];
 
 type EyeGazeSample = { x: number; y: number } | null;
-type EyeMapping = { ax: number; bx: number; ay: number; by: number } | null;
+type EyeMapping = {
+  ax: number;
+  bx: number;
+  ay: number;
+  by: number;
+  minMappedX: number;
+  maxMappedX: number;
+  minMappedY: number;
+  maxMappedY: number;
+} | null;
 
 const getStartupErrorMessage = (error: unknown): string => {
   if (error instanceof DOMException) {
@@ -162,7 +172,23 @@ const EyeTrackingPanel: React.FC = () => {
     const ay = (n * sumGyTy - sumGy * sumTy) / denomY;
     const by = (sumTy - ay * sumGy) / n;
 
-    return { ax, bx, ay, by };
+    const mappedXs = samples.map(({ gaze }) => ax * gaze.x + bx);
+    const mappedYs = samples.map(({ gaze }) => ay * gaze.y + by);
+    const minMappedX = Math.min(...mappedXs);
+    const maxMappedX = Math.max(...mappedXs);
+    const minMappedY = Math.min(...mappedYs);
+    const maxMappedY = Math.max(...mappedYs);
+
+    return {
+      ax,
+      bx,
+      ay,
+      by,
+      minMappedX,
+      maxMappedX,
+      minMappedY,
+      maxMappedY,
+    };
   };
 
   const applyMapping = (
@@ -172,9 +198,16 @@ const EyeTrackingPanel: React.FC = () => {
     if (!mapping) {
       return null;
     }
+
+    const rawX = mapping.ax * gaze.x + mapping.bx;
+    const rawY = mapping.ay * gaze.y + mapping.by;
+
+    const xSpan = Math.max(0.05, mapping.maxMappedX - mapping.minMappedX);
+    const ySpan = Math.max(0.05, mapping.maxMappedY - mapping.minMappedY);
+
     return {
-      x: clamp01(mapping.ax * gaze.x + mapping.bx),
-      y: clamp01(mapping.ay * gaze.y + mapping.by),
+      x: clamp01((rawX - mapping.minMappedX) / xSpan),
+      y: clamp01((rawY - mapping.minMappedY) / ySpan),
     };
   };
 
@@ -435,10 +468,17 @@ const EyeTrackingPanel: React.FC = () => {
             if (mapped) {
               const previous = smoothedGazeRef.current;
               const smoothed = previous
-                ? {
-                    x: EMA_ALPHA * mapped.x + (1 - EMA_ALPHA) * previous.x,
-                    y: EMA_ALPHA * mapped.y + (1 - EMA_ALPHA) * previous.y,
-                  }
+                ? (() => {
+                    const dx = mapped.x - previous.x;
+                    const dy = mapped.y - previous.y;
+                    if (Math.hypot(dx, dy) < GAZE_DEADZONE) {
+                      return previous;
+                    }
+                    return {
+                      x: EMA_ALPHA * mapped.x + (1 - EMA_ALPHA) * previous.x,
+                      y: EMA_ALPHA * mapped.y + (1 - EMA_ALPHA) * previous.y,
+                    };
+                  })()
                 : mapped;
               smoothedGazeRef.current = smoothed;
               await sendToActiveTab({
