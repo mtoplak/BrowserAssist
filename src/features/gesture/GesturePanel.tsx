@@ -529,6 +529,10 @@ const GesturePanel: React.FC = () => {
           !isPausedRef.current &&
           !gesturesLocked &&
           pinchPose &&
+          !isPointing &&
+          !isPointingDown &&
+          !pointingLeft &&
+          !pointingRight &&
           wristHistoryRef.current.length >= 2
         ) {
           const first = wristHistoryRef.current[0];

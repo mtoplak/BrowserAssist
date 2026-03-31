@@ -20,7 +20,7 @@ const EYE_BACK_EDGE = 0.08;
 const EYE_BACK_DWELL_MS = 650;
 const EYE_BACK_COOLDOWN_MS = 2000;
 
-const CALIBRATION_POINTS: Array<{ x: number; y: number }> = [
+const CALIBRATION_POINTS: Array<{ x: number; y: number; }> = [
     { x: 0.1, y: 0.1 },
     { x: 0.5, y: 0.1 },
     { x: 0.9, y: 0.1 },
@@ -214,11 +214,12 @@ const adjustZoom = (delta: number): void => {
 const moveHoverRing = (target: Element): void => {
     const ring = ensureHoverRing();
     const rect = target.getBoundingClientRect();
+    const z = pageZoom;
 
-    ring.style.left = `${rect.left - 3}px`;
-    ring.style.top = `${rect.top - 3}px`;
-    ring.style.width = `${Math.max(16, rect.width + 6)}px`;
-    ring.style.height = `${Math.max(16, rect.height + 6)}px`;
+    ring.style.left = `${(rect.left - 3) / z}px`;
+    ring.style.top = `${(rect.top - 3) / z}px`;
+    ring.style.width = `${Math.max(16, rect.width + 6) / z}px`;
+    ring.style.height = `${Math.max(16, rect.height + 6) / z}px`;
     ring.style.opacity = "1";
 };
 
@@ -426,8 +427,8 @@ const handlePointMove = (payload?: GestureRuntimeMessage["payload"]): void => {
     const py = Math.round(y * window.innerHeight);
 
     const pointer = ensurePointer();
-    pointer.style.left = `${px}px`;
-    pointer.style.top = `${py}px`;
+    pointer.style.left = `${px / pageZoom}px`;
+    pointer.style.top = `${py / pageZoom}px`;
     pointer.style.opacity = "1";
 
     const hoveredElement = document.elementFromPoint(px, py);
