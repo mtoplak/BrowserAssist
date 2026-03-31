@@ -18,7 +18,7 @@ const EYE_SCROLL_INTERVAL_MS = 180;
 const EYE_SCROLL_STEP = 110;
 const EYE_BACK_EDGE = 0.08;
 const EYE_BACK_DWELL_MS = 650;
-const EYE_BACK_COOLDOWN_MS = 1200;
+const EYE_BACK_COOLDOWN_MS = 2000;
 
 const CALIBRATION_POINTS: Array<{ x: number; y: number }> = [
     { x: 0.1, y: 0.1 },

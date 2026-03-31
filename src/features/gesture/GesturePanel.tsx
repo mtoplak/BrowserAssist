@@ -271,7 +271,7 @@ const GesturePanel: React.FC = () => {
       return;
     }
 
-    setStatusText("Checking camera access…");
+    setStatusText("Checking camera access...");
 
     let cameraAllowed = false;
     try {
@@ -284,7 +284,7 @@ const GesturePanel: React.FC = () => {
     }
 
     if (!cameraAllowed) {
-      setStatusText("Requesting camera permission…");
+      setStatusText("Requesting camera permission...");
       cameraAllowed = await new Promise<boolean>((resolve) => {
         let settled = false;
         const settle = (value: boolean): void => {

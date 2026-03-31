@@ -309,7 +309,7 @@ const EyeTrackingPanel: React.FC = () => {
       return;
     }
 
-    setEyeStatusText("Checking camera access…");
+    setEyeStatusText("Checking camera access...");
 
     let cameraAllowed = false;
     try {
@@ -322,7 +322,7 @@ const EyeTrackingPanel: React.FC = () => {
     }
 
     if (!cameraAllowed) {
-      setEyeStatusText("Requesting camera permission…");
+      setEyeStatusText("Requesting camera permission...");
       cameraAllowed = await new Promise<boolean>((resolve) => {
         let settled = false;
         const settle = (value: boolean): void => {
@@ -538,7 +538,7 @@ const EyeTrackingPanel: React.FC = () => {
       startedAt: Date.now(),
       samples: [gazeSample],
     };
-    setEyeStatusText("Hold gaze for a moment…");
+    setEyeStatusText("Hold gaze for a moment...");
   };
 
   useEffect(() => {
